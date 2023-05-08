@@ -40,7 +40,7 @@ def split(
 def create_folds(
         data: np.ndarray,
         labels: np.ndarray,
-        n_folds=10
+        n_folds
 ) -> tuple[np.ndarray, np.ndarray]:
     n_files = data.shape[0]
     files_per_fold = n_files // n_folds
