@@ -36,3 +36,35 @@ def split(
 
     return data_train, labels_train, data_test, labels_test
 
+
+def create_folds(
+        data: np.ndarray,
+        labels: np.ndarray,
+        n_folds=10
+) -> tuple[np.ndarray, np.ndarray]:
+    n_files = data.shape[0]
+    files_per_fold = n_files // n_folds
+
+    files_per_bird = n_files // N_BIRDS
+    files_per_bird_per_fold = files_per_bird // n_folds
+
+    data_folds = np.ndarray((n_folds, files_per_fold, data.shape[1], data.shape[2]))
+    labels_folds = np.ndarray((n_folds, files_per_fold, labels.shape[1]))
+
+    for fold in range(n_folds):
+        for bird in range(N_BIRDS):
+            data_folds[fold, files_per_bird_per_fold * bird:files_per_bird_per_fold * (bird + 1)] = \
+                data[
+                    files_per_bird * bird + files_per_bird_per_fold * fold
+                    :
+                    files_per_bird * bird + files_per_bird_per_fold * (fold + 1)
+                ]
+
+            labels_folds[fold, files_per_bird_per_fold * bird:files_per_bird_per_fold * (bird + 1)] = \
+                labels[
+                    files_per_bird * bird + files_per_bird_per_fold * fold
+                    :
+                    files_per_bird * bird + files_per_bird_per_fold * (fold + 1)
+                ]
+
+    return data_folds, labels_folds
