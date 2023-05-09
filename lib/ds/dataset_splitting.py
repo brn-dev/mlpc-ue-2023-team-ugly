@@ -1,6 +1,6 @@
 import numpy as np
 
-from .dataset_loading import BIRD_NAMES
+from lib.ds.dataset_loading import BIRD_NAMES
 
 N_BIRDS = len(BIRD_NAMES)
 

@@ -3,7 +3,8 @@ from typing import Any
 
 import numpy as np
 
-from .ds.dataset_splitting import create_folds
+from lib.ds.dataset_splitting import create_folds
+from lib.data_preprocessing import normalize_data
 
 # Parameters: train_data, train_labels; Returns: Model
 CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
@@ -25,11 +26,15 @@ def train_with_cv(
         data_validation = data_folds[fold]
         labels_validation = labels_folds[fold]
 
-        data_train = data_folds[np.setdiff1d(range(n_folds), fold)].reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
-        labels_train = labels_folds[np.setdiff1d(range(n_folds), fold)].reshape((-1, labels_folds.shape[-1]))
+        data_train = data_folds[np.setdiff1d(range(n_folds), fold)] \
+            .reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
+        labels_train = labels_folds[np.setdiff1d(range(n_folds), fold)] \
+            .reshape((-1, labels_folds.shape[-1]))
 
-        model = create_and_train_func(data_train, labels_train)
-        eval_func(model, data_validation, labels_validation)
+        data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
+
+        model = create_and_train_func(data_train_normalized, labels_train)
+        eval_func(model, data_validation_normalized, labels_validation)
 
 
 
