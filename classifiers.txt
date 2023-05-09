@@ -1,0 +1,14 @@
+
+Adi:
+    Linear discriminant
+    Ensemble methods: AdaBoost, RandomForest
+
+Leon:
+    Linear NN
+    kNN
+
+Matthias:
+    SVM
+
+Dominik:
+    Transformer NN
