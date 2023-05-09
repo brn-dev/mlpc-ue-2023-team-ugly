@@ -39,7 +39,11 @@ def main():
         data = data.reshape((-1, data.shape[-1]))[:, :20]
         labels = labels.flatten()
         print(clf.score(data, labels))
-
+        
+    def get_baseline(labels: np.ndarray) -> float:
+        labels = labels.flatten()
+        unique_labels, labels_count = np.unique(labels, return_counts=True)
+        return max(labels_count) / len(labels)
 
     train_with_cv(data_train, labels_train, create_and_train_func, eval_func)
 
