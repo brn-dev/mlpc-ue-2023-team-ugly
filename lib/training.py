@@ -5,6 +5,7 @@ import numpy as np
 
 from lib.ds.dataset_splitting import create_folds
 from lib.data_preprocessing import normalize_data
+from lib.data_preprocessing import remove_correlated_columns
 
 # Parameters: train_data, train_labels; Returns: Model
 CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
@@ -30,6 +31,8 @@ def train_with_cv(
             .reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
         labels_train = labels_folds[np.setdiff1d(range(n_folds), fold)] \
             .reshape((-1, labels_folds.shape[-1]))
+        
+        data_train, data_validation = remove_correlated_columns(data_train, data_validation)
 
         data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
 

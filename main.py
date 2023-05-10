@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.tree import DecisionTreeClassifier
+#from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
 
 from lib.ds.dataset_loading import load_all_data
 from lib.ds.dataset_splitting import split, create_folds
@@ -28,17 +29,19 @@ def main():
     # print(labels_train_folds.shape)
     # print(labels_train_folds)
 
-    def create_and_train_func(data: np.ndarray, labels: np.ndarray):
-        clf = DecisionTreeClassifier()
-        data = data.reshape((-1, data.shape[-1]))[:, :20]
+    def create_and_train_func(data: np.ndarray, labels: np.ndarray, seed=6942066):
+        clf = SVC(verbose=True, random_state=seed)
+        
+        data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
+        print(f"{data.shape= } {labels.shape= }")
         clf.fit(data, labels)
         return clf
 
     def eval_func(clf, data: np.ndarray, labels: np.ndarray):
-        data = data.reshape((-1, data.shape[-1]))[:, :20]
+        data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
-        print(clf.score(data, labels))
+        print(f"{clf.score(data, labels)= }")
         
     def get_baseline(labels: np.ndarray) -> float:
         labels = labels.flatten()
