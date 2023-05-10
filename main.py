@@ -1,18 +1,21 @@
 import numpy as np
+import os
 from sklearn.tree import DecisionTreeClassifier
 
 from lib.ds.dataset_loading import load_all_data
 from lib.ds.dataset_splitting import split, create_folds
 from lib.training import train_with_cv
+from sklearn.neighbors import KNeighborsClassifier
 from lib.data_preprocessing import remove_correlated_columns, normalize_data
+
 
 def main():
     # x = load_all_data('dataset')[1].max(axis=1)
     # print(x.shape)
     # print(x)
 
-    data_train, labels_train, data_test, labels_test = split(*load_all_data('dataset'), seed=7890)
-
+    data_train_folds_down = np.load(os.path.join('np_data','data_train_folds_down.npy'))
+    labels_train_folds_down = np.load(os.path.join('np_data','labels_train_folds_down.npy'))
 
     # print(data_train.shape)
     # print(data_train)
@@ -29,23 +32,18 @@ def main():
     # print(labels_train_folds)
 
     def create_and_train_func(data: np.ndarray, labels: np.ndarray):
-        clf = DecisionTreeClassifier()
-        data = data.reshape((-1, data.shape[-1]))[:, :20]
+        clf = KNeighborsClassifier()
+        data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
         clf.fit(data, labels)
         return clf
 
     def eval_func(clf, data: np.ndarray, labels: np.ndarray):
-        data = data.reshape((-1, data.shape[-1]))[:, :20]
+        data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
         print(clf.score(data, labels))
-        
-    def get_baseline(labels: np.ndarray) -> float:
-        labels = labels.flatten()
-        unique_labels, labels_count = np.unique(labels, return_counts=True)
-        return max(labels_count) / len(labels)
 
-    train_with_cv(data_train, labels_train, create_and_train_func, eval_func)
+    train_with_cv(data_train_folds_down, labels_train_folds_down, create_and_train_func, eval_func)
 
 
 if __name__ == '__main__':

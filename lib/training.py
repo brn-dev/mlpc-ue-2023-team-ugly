@@ -1,5 +1,6 @@
 from collections import Callable
 from typing import Any
+from tqdm import tqdm
 
 import numpy as np
 
@@ -13,18 +14,25 @@ CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
 EvalFunc = Callable[[Any, np.ndarray, np.ndarray], None]
 
 
+def get_baseline(labels: np.ndarray) -> float:
+    labels = labels.flatten()
+    unique_labels, labels_count = np.unique(labels, return_counts=True)
+    return max(labels_count) / len(labels)
+
+
 def train_with_cv(
-        data: np.ndarray,
-        labels: np.ndarray,
+        data_folds: np.ndarray,
+        labels_folds: np.ndarray,
         create_and_train_func: CreateAndTrainFunc,
         eval_func: EvalFunc,
         n_folds=10
 ):
-    data_folds, labels_folds = create_folds(data, labels, n_folds)
 
-    for fold in range(n_folds):
+    for fold in tqdm(range(n_folds)):
         data_validation = data_folds[fold]
         labels_validation = labels_folds[fold]
+        base_acc = get_baseline(labels_validation)
+        print(f'Baseline of fold {fold} = {base_acc}')
 
         data_train = data_folds[np.setdiff1d(range(n_folds), fold)] \
             .reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
@@ -34,8 +42,5 @@ def train_with_cv(
         data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
 
         model = create_and_train_func(data_train_normalized, labels_train)
+        print(f'Validation accuracy of fold {fold}')
         eval_func(model, data_validation_normalized, labels_validation)
-
-
-
-
