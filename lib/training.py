@@ -2,6 +2,7 @@ from collections import Callable
 from typing import Any
 
 import numpy as np
+import pickle
 
 from lib.ds.dataset_splitting import create_folds
 from lib.data_preprocessing import normalize_data
@@ -21,6 +22,7 @@ def train_with_cv(
         eval_func: EvalFunc,
         n_folds=10
 ):
+
     data_folds, labels_folds = create_folds(data, labels, n_folds)
 
     for fold in range(n_folds):
@@ -39,6 +41,4 @@ def train_with_cv(
         model = create_and_train_func(data_train_normalized, labels_train)
         eval_func(model, data_validation_normalized, labels_validation)
 
-
-
-
+        pickle.dump(model, open(f"model_fold_{fold}.sav", "wb"))

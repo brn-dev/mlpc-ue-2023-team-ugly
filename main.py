@@ -1,6 +1,7 @@
 import numpy as np
 #from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
+from sklearn.metrics import balanced_accuracy_score
 
 from lib.ds.dataset_loading import load_all_data
 from lib.ds.dataset_splitting import split, create_folds
@@ -41,7 +42,9 @@ def main():
     def eval_func(clf, data: np.ndarray, labels: np.ndarray):
         data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
-        print(f"{clf.score(data, labels)= }")
+        label_pred = clf.predict(data)
+        print(f"\nMean Accuracy: {clf.score(data, labels) }")
+        print(f"Balanced Accuracy: {balanced_accuracy_score(labels, label_pred)}")
         
     def get_baseline(labels: np.ndarray) -> float:
         labels = labels.flatten()
