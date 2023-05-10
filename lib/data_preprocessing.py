@@ -9,7 +9,7 @@ def find_correlated_columns_to_drop(data: np.ndarray) -> np.ndarray:
 
     corr_matrix_upper_tri = np.triu(corr_matrix_abs, k=1)
 
-    return np.ndarray([
+    return np.array([
         column_idx
         for column_idx
         in range(corr_matrix_upper_tri.shape[0])
