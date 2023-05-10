@@ -1,38 +1,20 @@
 import numpy as np
 import os
-from sklearn.tree import DecisionTreeClassifier
-
-from lib.ds.dataset_loading import load_all_data
-from lib.ds.dataset_splitting import split, create_folds
-from lib.training import train_with_cv
 from sklearn.neighbors import KNeighborsClassifier
-from lib.data_preprocessing import remove_correlated_columns, normalize_data
-
+from lib.training import train_with_cv, train_best
 
 def main():
-    # x = load_all_data('dataset')[1].max(axis=1)
-    # print(x.shape)
-    # print(x)
 
-    data_train_folds_down = np.load(os.path.join('np_data','data_train_folds_down.npy'))
-    labels_train_folds_down = np.load(os.path.join('np_data','labels_train_folds_down.npy'))
+    data_train_folds_down = np.load(os.path.join('np_data', 'data_train_folds_down.npy'))
+    labels_data_train_folds_down = np.load(os.path.join('np_data', 'labels_train_folds_down.npy'))
 
-    # print(data_train.shape)
-    # print(data_train)
-    # print(labels_train.shape)
-    # print(labels_train)
-    # print(data_test.shape)
-    # print(data_test)
-    # print(labels_test.shape)
-    # print(labels_test)
-    # data_train_folds, labels_train_folds = create_folds(data_train, labels_train)
-    # print(data_train_folds.shape)
-    # print(data_train_folds)
-    # print(labels_train_folds.shape)
-    # print(labels_train_folds)
+    data_train_down = np.load(os.path.join('np_data', 'data_train_down.npy'))
+    labels_train = np.load(os.path.join('np_data', 'labels_train.npy'))
+    data_test_down = np.load(os.path.join('np_data', 'data_test_down.npy'))
+    labels_test = np.load(os.path.join('np_data', 'labels_test.npy'))
 
-    def create_and_train_func(data: np.ndarray, labels: np.ndarray):
-        clf = KNeighborsClassifier()
+    def create_and_train_func(data: np.ndarray, labels: np.ndarray, k=5):
+        clf = KNeighborsClassifier(n_neighbors=k)
         data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
         clf.fit(data, labels)
@@ -41,11 +23,25 @@ def main():
     def eval_func(clf, data: np.ndarray, labels: np.ndarray):
         data = data.reshape((-1, data.shape[-1]))
         labels = labels.flatten()
-        print(clf.score(data, labels))
+        return clf.score(data, labels)
+        
+    def get_baseline(labels: np.ndarray) -> float:
+        labels = labels.flatten()
+        unique_labels, labels_count = np.unique(labels, return_counts=True)
+        return max(labels_count) / len(labels)
 
-    train_with_cv(data_train_folds_down, labels_train_folds_down, create_and_train_func, eval_func)
+    results = train_with_cv(data_train_folds_down, labels_data_train_folds_down, create_and_train_func, eval_func)
+    best_knn = int(max(results, key=results.get)[5:])
+    train_best(
+        data_train_down,
+        labels_train,
+        data_test_down,
+        labels_test,
+        create_and_train_func,
+        eval_func,
+        best_knn
+    )
 
 
 if __name__ == '__main__':
     main()
-

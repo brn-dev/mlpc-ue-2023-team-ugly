@@ -1,6 +1,7 @@
 from collections import Callable
 from typing import Any
 from tqdm import tqdm
+import dill as pkl
 
 import numpy as np
 
@@ -25,22 +26,41 @@ def train_with_cv(
         labels_folds: np.ndarray,
         create_and_train_func: CreateAndTrainFunc,
         eval_func: EvalFunc,
-        n_folds=10
+        n_folds=10):
+
+    model_scores = dict()
+    for k in range(5, 100, 5):
+        scores = np.array([])
+        for fold in tqdm(range(n_folds)):
+            data_validation = data_folds[fold]
+            labels_validation = labels_folds[fold]
+
+            data_train = data_folds[np.setdiff1d(range(n_folds), fold)] \
+                .reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
+            labels_train = labels_folds[np.setdiff1d(range(n_folds), fold)] \
+                .reshape((-1, labels_folds.shape[-1]))
+
+            data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
+
+            model = create_and_train_func(data_train_normalized, labels_train, k=k)
+            score = eval_func(model, data_validation_normalized, labels_validation)
+            scores = np.append(scores, score)
+
+        model_scores[f'knn_{k}'] = scores.mean()
+
+
+def train_best(
+        data_train: np.ndarray,
+        labels_train: np.ndarray,
+        data_test: np.ndarray,
+        labels_test: np.ndarray,
+        create_and_train_func: CreateAndTrainFunc,
+        eval_func: EvalFunc,
+        k: int
 ):
 
-    for fold in tqdm(range(n_folds)):
-        data_validation = data_folds[fold]
-        labels_validation = labels_folds[fold]
-        base_acc = get_baseline(labels_validation)
-        print(f'Baseline of fold {fold} = {base_acc}')
-
-        data_train = data_folds[np.setdiff1d(range(n_folds), fold)] \
-            .reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
-        labels_train = labels_folds[np.setdiff1d(range(n_folds), fold)] \
-            .reshape((-1, labels_folds.shape[-1]))
-
-        data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
-
-        model = create_and_train_func(data_train_normalized, labels_train)
-        print(f'Validation accuracy of fold {fold}')
-        eval_func(model, data_validation_normalized, labels_validation)
+    data_train_normalized, data_test_normalized = normalize_data(data_train, data_test)
+    model = create_and_train_func(data_train_normalized, labels_train, k=k)
+    with open('knn.pkl', 'wb') as f:
+        pkl.dump(model, f)
+    print(eval_func(model, data_test_normalized, labels_test))
