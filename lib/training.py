@@ -22,6 +22,7 @@ def train_with_cv(
         eval_func: EvalFunc,
         n_folds=10
 ):
+    print(data.shape)
 
     data_folds, labels_folds = create_folds(data, labels, n_folds)
 
@@ -29,12 +30,16 @@ def train_with_cv(
         data_validation = data_folds[fold]
         labels_validation = labels_folds[fold]
 
+        print(f"{data_validation.shape=}")
+
         data_train = data_folds[np.setdiff1d(range(n_folds), fold)] \
             .reshape((-1, data_folds.shape[-2], data_folds.shape[-1]))
         labels_train = labels_folds[np.setdiff1d(range(n_folds), fold)] \
             .reshape((-1, labels_folds.shape[-1]))
         
+        print(f"Before remove corr: {data_train.shape=}")
         data_train, data_validation = remove_correlated_columns(data_train, data_validation)
+        print(f"After remove corr: {data_train.shape=}")
 
         data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
 
