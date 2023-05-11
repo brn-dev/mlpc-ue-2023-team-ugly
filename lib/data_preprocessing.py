@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 
-CORRELATION_THRESHOLD = 0.8
+CORRELATION_THRESHOLD = 0.9
 
 def find_correlated_columns_to_drop(data: np.ndarray) -> np.ndarray:
     data_flattened = data.reshape((-1, data.shape[-1]))
@@ -25,7 +25,7 @@ def remove_correlated_columns(data_train: np.ndarray, data_test: np.ndarray) -> 
 
     return data_train, data_test
 
-def normalize_data(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def normalize_data(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.ndarray, np.ndarray, StandardScaler]:
     print(data_train.shape)
     data_train_flattened = data_train.reshape((-1, data_train.shape[-1]))
     data_test_flattened = data_test.reshape((-1, data_test.shape[-1]))
@@ -37,7 +37,7 @@ def normalize_data(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.nd
     data_train_scaled = scaler.transform(data_train_flattened)
     data_test_scaled = scaler.transform(data_test_flattened)
 
-    return data_train_scaled.reshape(data_train.shape), data_test_scaled.reshape(data_test.shape)
+    return data_train_scaled.reshape(data_train.shape), data_test_scaled.reshape(data_test.shape), scaler
 
 
 def labelsmoothing(enc: OneHotEncoder, labels: np.ndarray, alpha: float=0.3) -> np.ndarray:
