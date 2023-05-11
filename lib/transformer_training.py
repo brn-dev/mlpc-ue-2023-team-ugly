@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Tuple, Callable
 
 import numpy as np
