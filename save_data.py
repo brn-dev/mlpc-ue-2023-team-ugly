@@ -1,11 +1,9 @@
 import numpy as np
-from sklearn.tree import DecisionTreeClassifier
 import os
 
 from lib.ds.dataset_loading import load_all_data
 from lib.ds.dataset_splitting import split, create_folds
-# from lib.training import train_with_cv
-from lib.data_preprocessing import remove_correlated_columns, normalize_data
+from lib.data_preprocessing import remove_correlated_columns, find_best_features
 
 
 def save_data():
@@ -52,6 +50,7 @@ def save_data_2():
 
     print(data_train.shape, data_test.shape)
     data_train_down_old, data_test_down_old = remove_correlated_columns(data_train, data_test)
+    data_train_down_old, data_test_down_old = find_best_features(data_train_down_old, labels_train, data_test_down_old)
 
     np.save(os.path.join('np_data','data_train_down.npy'), data_train_down_old)
     np.save(os.path.join('np_data','data_test_down.npy'), data_test_down_old)
