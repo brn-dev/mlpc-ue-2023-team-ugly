@@ -47,7 +47,10 @@ def main():
         print(clf, end='\n\n')
 
         performances = dict()
-        nr_epochs = 5
+        nr_epochs = 10
+        accuracies = np.array([])
+        losses = np.array([])
+        b_accuracies = np.array([])
         acc_loss = dict()
         for epoch in range(nr_epochs):
             train_network(clf, loader_train, optim, target_device)
@@ -55,20 +58,26 @@ def main():
 
             print(f'Epoch: {str(epoch + 1).zfill(len(str(nr_epochs)))} ' +
                   f'/ Loss: {performance[0]:.4f} / Accuracy: {performance[1]:.4f} / Balanced accuracy: {performance[2]:.4f}')
-            acc_loss["acc"] = performance[0]
-            acc_loss['loss'] = performance[1]
-            acc_loss['b_acc'] = performance[2]
+            accuracies = np.append(accuracies, performance[0])
+            losses = np.append(losses, performance[1])
+            b_accuracies = np.append(b_accuracies, performance[2])
 
-            performances[f'epoch_{epoch}'] = acc_loss
+        acc_loss["acc"] = accuracies.mean()
+        acc_loss['loss'] = losses.mean()
+        acc_loss['b_acc'] = b_accuracies.mean()
+        print(
+            f'\nFinal train loss: {acc_loss["loss"]:.4f} / Final train accuracy: {acc_loss["acc"]:.4f} / Final train balanced accuracy: {acc_loss["b_acc"]:.4f}')
+        performances['train'] = acc_loss
 
         performance = test_network(clf, loader_test, target_device)
-        acc_loss["acc"] = performance[0]
-        acc_loss['loss'] = performance[1]
+        acc_loss['loss'] = performance[0]
+        acc_loss['acc'] = performance[1]
         acc_loss['b_acc'] = performance[2]
-        print(f'\nFinal loss: {performance[0]:.4f} / Final accuracy: {performance[1]:.4f} / Final balanced accuracy: {performance[2]:.4f}')
-        performances['final'] = acc_loss
+        print(
+            f'\nFinal validation loss: {performance[0]:.4f} / Final validation accuracy: {performance[1]:.4f} / Final validation balanced accuracy: {performance[2]:.4f}')
+        performances['valid'] = acc_loss
 
-        return clf, performances
+        return clf, optim, performances
 
     def train_network(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader,
                       optimizer: torch.optim.Optimizer, device: torch.device = 'cpu') -> None:
@@ -119,26 +128,15 @@ def main():
         balanced_acc = balanced_accuracy_score(targets.flatten(), predictions.flatten())
         return loss / num_samples, num_correct / num_samples, balanced_acc
 
-    # def eval_func(clf, data: np.ndarray, labels: np.ndarray):
-    #     data = data.reshape((-1, data.shape[-1]))
-    #     labels = labels.flatten()
-    #     acc = clf.score(data, labels)
-    #     b_acc = balanced_accuracy_score(labels, clf.predict(data))
-    #     return acc, b_acc
-
     # def get_baseline(labels: np.ndarray) -> float:
     #     labels = labels.flatten()
     #     unique_labels, labels_count = np.unique(labels, return_counts=True)
     #     return max(labels_count) / len(labels)
 
-    train_with_cv(data_train_folds_down,
-                  labels_data_train_folds_down,
-                  create_and_train_func,
-                  )
-    # best_knn_valid_acc = int(max(valid_accuracies, key=valid_accuracies.get)[4:])
-    # best_knn_valid_b_acc = int(max(valid_balanced_acc, key=valid_balanced_acc.get)[4:])
-    # best_knn_train_acc = int(max(train_accuracies, key=train_accuracies.get)[4:])
-    # best_knn_train_b_acc = int(max(train_balanced_acc, key=train_balanced_acc.get)[4:])
+    model = train_with_cv(data_train_folds_down,
+                          labels_data_train_folds_down,
+                          create_and_train_func
+                          )
 
 
 # print(f'Best k: {best_knn_valid_acc} | accuracy: {valid_accuracies[f"knn_{best_knn_valid_acc}"]}')

@@ -16,6 +16,7 @@ class FNN(nn.Module):
         self.fc5 = nn.Linear(150, 50)
         self.relu5 = nn.ReLU()
         self.fc6 = nn.Linear(50, output_dim)
+        self.apply(self._init_weights)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -30,3 +31,9 @@ class FNN(nn.Module):
         x = self.relu5(x)
         x = self.fc6(x)
         return x
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=1.0)
+            if module.bias is not None:
+                module.bias.data.zero_()
