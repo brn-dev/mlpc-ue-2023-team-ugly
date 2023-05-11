@@ -2,9 +2,14 @@ import numpy as np
 import os
 import dill as pkl
 from typing import Tuple
-from sklearn.neighbors import KNeighborsClassifier
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import sklearn.metrics
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import balanced_accuracy_score
 from lib.training import train_with_cv, train_best
+from lib.data_preprocessing import normalize_data
 from lib.ds.dataset_loading import flatten
 from torch.utils.data import DataLoader, TensorDataset
 from lib.fnn import FNN
@@ -25,11 +30,12 @@ def main():
     # with open(os.path.join('scores_select150best', 'knn_valid_balanced_accuracies.pkl'), 'rb') as f:
     #     valid_balanced_acc = pkl.load(f)
 
-    def create_and_train_func(data_train: np.ndarray, labels_train: np.ndarray, data_test: np.ndarray,
-                              labels_test: np.ndarray):
-        target_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        torch.manual_seed(69)
-        clf = FNN(data_train.shape[-1], 7).to(device=target_device)
+    def train_func(model: torch.nn.Module, optim: torch.optim.Optimizer, data_train: np.ndarray,
+                   labels_train: np.ndarray, data_test: np.ndarray,
+                   labels_test: np.ndarray, nr_epochs: int, device: torch.device = 'cpu', confusion_bool: bool = False):
+
+        target_device = device
+        clf = model
 
         data_train, labels_train = flatten(data_train, labels_train)
         data_train = torch.from_numpy(data_train)
@@ -43,11 +49,10 @@ def main():
 
         loader_train = DataLoader(data_train, batch_size=32, shuffle=True)
         loader_test = DataLoader(data_test, batch_size=32, shuffle=False)
-        optim = torch.optim.Adam(clf.parameters(), lr=1e-3)
+        optim = optim
         print(clf, end='\n\n')
 
         performances = dict()
-        nr_epochs = 10
         accuracies = np.array([])
         losses = np.array([])
         b_accuracies = np.array([])
@@ -58,8 +63,8 @@ def main():
 
             print(f'Epoch: {str(epoch + 1).zfill(len(str(nr_epochs)))} ' +
                   f'/ Loss: {performance[0]:.4f} / Accuracy: {performance[1]:.4f} / Balanced accuracy: {performance[2]:.4f}')
-            accuracies = np.append(accuracies, performance[0])
-            losses = np.append(losses, performance[1])
+            accuracies = np.append(accuracies, performance[1])
+            losses = np.append(losses, performance[0])
             b_accuracies = np.append(b_accuracies, performance[2])
 
         acc_loss["acc"] = accuracies.mean()
@@ -69,7 +74,7 @@ def main():
             f'\nFinal train loss: {acc_loss["loss"]:.4f} / Final train accuracy: {acc_loss["acc"]:.4f} / Final train balanced accuracy: {acc_loss["b_acc"]:.4f}')
         performances['train'] = acc_loss
 
-        performance = test_network(clf, loader_test, target_device)
+        performance = test_network(clf, loader_test, target_device, confusion_bool=confusion_bool)
         acc_loss['loss'] = performance[0]
         acc_loss['acc'] = performance[1]
         acc_loss['b_acc'] = performance[2]
@@ -100,7 +105,7 @@ def main():
             optimizer.step()
 
     def test_network(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader,
-                     device: torch.device = 'cpu') -> Tuple[float, float, float]:
+                     device: torch.device = 'cpu', confusion_bool: bool = False) -> Tuple[float, float, float]:
         """
         Test specified network on specified data loader.
 
@@ -125,7 +130,17 @@ def main():
                 num_correct += int((pred == target.view(-1)).sum().item())
                 num_samples += pred.shape[0]
 
-        balanced_acc = balanced_accuracy_score(targets.flatten(), predictions.flatten())
+        targets = targets.flatten()
+        predictions = predictions.flatten()
+
+        if confusion_bool:
+            print('Listen')
+            confusion_m = confusion_matrix(targets, predictions, normalize='true')
+            confusion_display = ConfusionMatrixDisplay(confusion_m)
+            confusion_display.plot()
+            plt.show()
+
+        balanced_acc = balanced_accuracy_score(targets, predictions)
         return loss / num_samples, num_correct / num_samples, balanced_acc
 
     # def get_baseline(labels: np.ndarray) -> float:
@@ -133,27 +148,24 @@ def main():
     #     unique_labels, labels_count = np.unique(labels, return_counts=True)
     #     return max(labels_count) / len(labels)
 
-    model = train_with_cv(data_train_folds_down,
-                          labels_data_train_folds_down,
-                          create_and_train_func
-                          )
+    target_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # model_and_data = train_with_cv(data_train_folds_down,
+    #                                labels_data_train_folds_down,
+    #                                train_func
+    #                                )
 
-# print(f'Best k: {best_knn_valid_acc} | accuracy: {valid_accuracies[f"knn_{best_knn_valid_acc}"]}')
-# print()
-# print(f'Best k: {best_knn_valid_b_acc} | balanced accuracy: {valid_balanced_acc[f"knn_{best_knn_valid_b_acc}"]}')
-# print()
-# print(f'Best k: {best_knn_train_acc} | accuracy: {train_accuracies[f"knn_{best_knn_train_acc}"]}')
-# print()
-# print(f'Best k: {best_knn_train_b_acc} | balanced accuracy: {train_balanced_acc[f"knn_{best_knn_train_b_acc}"]}')
-#  train_best(
-#      data_train_down,
-#      labels_train,
-#      data_test_down,
-#      labels_test,
-#      create_and_train_func,
-#      eval_func,
-#      best_knn_valid_b_acc)
+    all_data_train = np.load(os.path.join('np_data_90corr_select150best', 'data_train_down.npy'))
+    all_data_test = np.load(os.path.join('np_data_90corr_select150best', 'data_test_down.npy'))
+    all_label_train = np.load(os.path.join('np_data_90corr_select150best', 'labels_train.npy'))
+    all_label_test = np.load(os.path.join('np_data_90corr_select150best', 'labels_test.npy'))
+    all_data_train, all_data_test = normalize_data(all_data_train, all_data_test)
+
+    torch.manual_seed(69)
+    model = FNN(all_data_train.shape[-1], 7).to(device=target_device)
+    optim = torch.optim.Adamax(model.parameters(), lr=1e-3)
+
+    train_func(model, optim, all_data_train, all_label_train, all_data_test, all_label_test, 30, target_device, confusion_bool=True)
 
 
 if __name__ == '__main__':

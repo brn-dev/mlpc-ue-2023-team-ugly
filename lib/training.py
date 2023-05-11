@@ -6,6 +6,7 @@ import dill as pkl
 import numpy as np
 from lib.data_preprocessing import normalize_data
 import torch
+from lib.fnn import FNN
 
 # Parameters: train_data, train_labels; Returns: Model
 CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
@@ -23,7 +24,7 @@ def get_baseline(labels: np.ndarray) -> float:
 def train_with_cv(
         data_folds: np.ndarray,
         labels_folds: np.ndarray,
-        create_and_train_func: CreateAndTrainFunc,
+        train_func: CreateAndTrainFunc,
         n_folds=10):
 
     os.makedirs('scores', exist_ok=True)
@@ -33,7 +34,9 @@ def train_with_cv(
     train_b_accuracies = np.array([])
     clf = None
     optim = None
+    target_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     for fold in range(n_folds):
+
         data_validation = data_folds[fold]
         labels_validation = labels_folds[fold]
 
@@ -44,7 +47,11 @@ def train_with_cv(
 
         data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
 
-        clf, optim, performances = create_and_train_func(data_train_normalized, labels_train, data_validation_normalized, labels_validation)
+        torch.manual_seed(69)
+        optim = torch.optim.Adam(clf.parameters(), lr=1e-3)
+        clf = FNN(data_train_normalized.shape[-1], 7).to(device=target_device)
+
+        clf, optim, performances = train_func(clf, optim, data_train_normalized, labels_train, data_validation_normalized, labels_validation, 10, target_device)
         valid_accuracies = np.append(valid_accuracies, performances['valid']['acc'])
         valid_b_accuracies = np.append(valid_b_accuracies, performances['valid']['b_acc'])
         train_accuracies = np.append(train_accuracies, performances['train']['acc'])
@@ -57,7 +64,7 @@ def train_with_cv(
 
     model = dict({'accuracies': accuracies,
                   'model_params': clf.state_dict(),
-                  'optim_params': optim.stae_dict()})
+                  'optim_params': optim.state_dict()})
 
     with open(os.path.join('scores', 'fnn_val.pkl'), 'wb') as f:
         pkl.dump(model, f)
