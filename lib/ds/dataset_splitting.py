@@ -89,3 +89,34 @@ def split_by_1d(
     labels_test = labels[test_idxs]
 
     return data_train, labels_train, data_test, labels_test
+
+
+def redistribute_labels(data, labels, seed: int = 6942066):
+    np.random.seed(seed)
+
+    labels_flat = labels.flatten()  # 1d array
+    data_flat = data.reshape((-1, data.shape[-1]))  # 2d array
+    labels_unique = sorted(np.unique(labels_flat))
+
+    classes_split = [np.argwhere(labels_flat == l) for l in labels_unique]
+    smallest_class = np.argmin([len(c) for c in classes_split])
+
+    smallest_class_k = len(classes_split[smallest_class])
+
+    randomized_samples = [np.random.choice(c.flatten(), smallest_class_k, replace=False) \
+                          for c in classes_split]
+
+    randomized_samples = np.asarray(randomized_samples)
+
+    randomized_labels = labels_flat[randomized_samples.flatten()]
+    randomized_data = data_flat[randomized_samples.flatten()]
+
+    randomized_data, randomized_labels = unison_shuffled_copies(randomized_data, randomized_labels)
+
+    randomized_data = randomized_data.reshape((len(labels_unique), smallest_class_k, data.shape[-1]))
+
+    # print(labels_flat[randomized_samples.flatten()][4600:4800])
+
+    print(f"{randomized_data.shape=} {randomized_labels.shape=}")
+
+    return randomized_data, randomized_labels.reshape((len(labels_unique), smallest_class_k))

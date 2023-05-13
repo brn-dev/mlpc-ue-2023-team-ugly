@@ -1,8 +1,8 @@
 import numpy as np
 import os
 
-from lib.ds.dataset_loading import load_all_data
-from lib.ds.dataset_splitting import split, create_folds
+from lib.ds.dataset_loading import load_all_data, flatten
+from lib.ds.dataset_splitting import split, create_folds, split_by_1d, redistribute_labels
 from lib.data_preprocessing import remove_correlated_columns, find_best_features
 
 data_path = 'np_data_new'
