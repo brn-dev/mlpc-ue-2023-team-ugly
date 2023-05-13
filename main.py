@@ -4,8 +4,6 @@ import dill as pkl
 from typing import Tuple
 
 import matplotlib.pyplot as plt
-import seaborn as sns
-import sklearn.metrics
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import balanced_accuracy_score
 from lib.training import train_with_cv, train_best
