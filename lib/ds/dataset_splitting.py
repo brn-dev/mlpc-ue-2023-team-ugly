@@ -68,3 +68,24 @@ def create_folds(
                 ]
 
     return data_folds, labels_folds
+
+
+def split_by_1d(
+        data: np.ndarray,
+        labels: np.ndarray,
+        test_size_pct=0.2,
+        seed=6942066
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    np.random.seed(seed)
+
+    # get indices for splitting into train and test set
+    test_idxs = np.random.choice(range(len(labels)), int(len(labels) * test_size_pct), replace=False)
+    train_idxs = np.delete(np.asarray(range(len(labels))), test_idxs)
+
+    # splitting into train and test set
+    data_train = data[train_idxs]
+    labels_train = labels[train_idxs]
+    data_test = data[test_idxs]
+    labels_test = labels[test_idxs]
+
+    return data_train, labels_train, data_test, labels_test
