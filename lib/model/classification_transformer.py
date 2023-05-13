@@ -11,16 +11,18 @@ from lib.torch_device import get_torch_device
 
 @dataclass(init=True)
 class TransformerHyperParameters(HyperParameters):
-    d_model = 512
-    nhead = 8
-    num_encoder_layers = 6
-    num_decoder_layers = 6
-    dim_feedforward = 2048
-    dropout = 0.1
+    d_model: int
+    nhead: int
+    num_encoder_layers: int
+    num_decoder_layers: int
+    dim_feedforward: int
+    dropout: float
 
-    out_size = 7
+    out_size: int
 
     in_features: int
+
+    lr: float
 
 
 class ClassificationTransformer(nn.Module):
