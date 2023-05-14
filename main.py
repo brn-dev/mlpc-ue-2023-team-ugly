@@ -1,22 +1,22 @@
 import numpy as np
 import os
-import dill as pkl
 from typing import Tuple
 
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import balanced_accuracy_score
-from lib.training import train_with_cv, train_best
+from lib.training import train_with_cv
 from lib.data_preprocessing import normalize_data
 from lib.ds.dataset_loading import flatten
 from torch.utils.data import DataLoader, TensorDataset
-from lib.fnn import FNN
 import torch
 
 
+dataset_path = 'np_data_new'
+
 def main():
-    data_train_folds_down = np.load(os.path.join('np_data_90corr_select150best', 'data_train_folds_down.npy'))
-    labels_data_train_folds_down = np.load(os.path.join('np_data_90corr_select150best', 'labels_train_folds_down.npy'))
+    # data_train_folds_down = np.load(os.path.join('np_data_90corr_select150best', 'data_train_folds_down.npy'))
+    # labels_data_train_folds_down = np.load(os.path.join('np_data_90corr_select150best', 'labels_train_folds_down.npy'))
 
     # data_train_down = np.load(os.path.join('np_data_select150best', 'data_train_down.npy'))
     # labels_train = np.load(os.path.join('np_data_select150best', 'labels_train.npy'))
@@ -35,12 +35,10 @@ def main():
         target_device = device
         clf = model
 
-        data_train, labels_train = flatten(data_train, labels_train)
         data_train = torch.from_numpy(data_train)
         labels_train = torch.from_numpy(labels_train)
         data_train = TensorDataset(data_train, labels_train)
 
-        data_test, labels_test = flatten(data_test, labels_test)
         data_test = torch.from_numpy(data_test)
         labels_test = torch.from_numpy(labels_test)
         data_test = TensorDataset(data_test, labels_test)
@@ -51,34 +49,49 @@ def main():
         print(clf, end='\n\n')
 
         performances = dict()
-        accuracies = np.array([])
-        losses = np.array([])
-        b_accuracies = np.array([])
-        acc_loss = dict()
+        train_accuracies = np.array([])
+        train_losses = np.array([])
+        train_b_accuracies = np.array([])
+
+        valid_accuracies = np.array([])
+        valid_losses = np.array([])
+        valid_b_accuracies = np.array([])
+
+        train_acc_loss = dict()
+        valid_acc_loss = dict()
         for epoch in range(nr_epochs):
             train_network(clf, loader_train, optim, target_device)
-            performance = test_network(clf, loader_train, target_device)
+            performance_train = test_network(clf, loader_train, target_device)
+            performance_valid = test_network(clf, loader_test, target_device)
 
             print(f'Epoch: {str(epoch + 1).zfill(len(str(nr_epochs)))} ' +
-                  f'/ Loss: {performance[0]:.4f} / Accuracy: {performance[1]:.4f} / Balanced accuracy: {performance[2]:.4f}')
-            accuracies = np.append(accuracies, performance[1])
-            losses = np.append(losses, performance[0])
-            b_accuracies = np.append(b_accuracies, performance[2])
+                  f'/ Train | Validation Loss: {performance_train[0]:.4f} | {performance_valid[0]:.4f} / Train | '
+                  f'Validation Accuracy: {performance_train[1]:.4f} | {performance_valid[1]:.4f} / Train | Validation '
+                  f'Balanced accuracy: {performance_train[2]:.4f} | {performance_valid[2]:.4f}')
+            train_accuracies = np.append(train_accuracies, performance_train[1])
+            train_losses = np.append(train_losses, performance_train[0])
+            train_b_accuracies = np.append(train_b_accuracies, performance_train[2])
 
-        acc_loss["acc"] = accuracies.mean()
-        acc_loss['loss'] = losses.mean()
-        acc_loss['b_acc'] = b_accuracies.mean()
-        print(
-            f'\nFinal train loss: {acc_loss["loss"]:.4f} / Final train accuracy: {acc_loss["acc"]:.4f} / Final train balanced accuracy: {acc_loss["b_acc"]:.4f}')
-        performances['train'] = acc_loss
+            valid_accuracies = np.append(valid_accuracies, performance_valid[1])
+            valid_losses = np.append(valid_losses, performance_valid[0])
+            valid_b_accuracies = np.append(valid_b_accuracies, performance_valid[2])
 
-        performance = test_network(clf, loader_test, target_device, confusion_bool=confusion_bool)
-        acc_loss['loss'] = performance[0]
-        acc_loss['acc'] = performance[1]
-        acc_loss['b_acc'] = performance[2]
+        train_acc_loss["acc"] = train_accuracies[-1]
+        train_acc_loss['loss'] = train_losses[-1]
+        train_acc_loss['b_acc'] = train_b_accuracies[-1]
+
+        valid_acc_loss["acc"] = valid_accuracies[-1]
+        valid_acc_loss['loss'] = valid_losses[-1]
+        valid_acc_loss['b_acc'] = valid_b_accuracies[-1]
         print(
-            f'\nFinal validation loss: {performance[0]:.4f} / Final validation accuracy: {performance[1]:.4f} / Final validation balanced accuracy: {performance[2]:.4f}')
-        performances['valid'] = acc_loss
+            f'\nFinal train | valid loss: {train_acc_loss["loss"]:.4f} | {valid_acc_loss["loss"]:.4f} / Final train | '
+            f'valid accuracy: {train_acc_loss["acc"]:.4f} | {valid_acc_loss["acc"]:.4f} / Final train | valid '
+            f'balanced accuracy: {train_acc_loss["b_acc"]:.4f} | {valid_acc_loss["b_acc"]:.4f}\n')
+
+        performances['train'] = train_acc_loss
+        performances['valid'] = valid_acc_loss
+
+        test_network(clf, loader_test, target_device, confusion_bool=confusion_bool)
 
         return clf, optim, performances
 
@@ -132,7 +145,6 @@ def main():
         predictions = predictions.flatten()
 
         if confusion_bool:
-            print('Listen')
             confusion_m = confusion_matrix(targets, predictions, normalize='true')
             confusion_display = ConfusionMatrixDisplay(confusion_m)
             confusion_display.plot()
@@ -146,24 +158,18 @@ def main():
     #     unique_labels, labels_count = np.unique(labels, return_counts=True)
     #     return max(labels_count) / len(labels)
 
-    target_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # model_and_data = train_with_cv(data_train_folds_down,
-    #                                labels_data_train_folds_down,
-    #                                train_func
-    #                                )
-
-    all_data_train = np.load(os.path.join('np_data_90corr_select150best', 'data_train_down.npy'))
-    all_data_test = np.load(os.path.join('np_data_90corr_select150best', 'data_test_down.npy'))
-    all_label_train = np.load(os.path.join('np_data_90corr_select150best', 'labels_train.npy'))
-    all_label_test = np.load(os.path.join('np_data_90corr_select150best', 'labels_test.npy'))
+    all_data_train = np.load(os.path.join(dataset_path, 'balanced_data_train_down.npy'))
+    all_data_test = np.load(os.path.join(dataset_path, 'flatten_data_test.npy'))
+    all_labels_train = np.load(os.path.join(dataset_path, 'balanced_labels_train.npy'))
+    all_labels_test = np.load(os.path.join(dataset_path, 'flatten_labels_test.npy'))
     all_data_train, all_data_test = normalize_data(all_data_train, all_data_test)
 
-    torch.manual_seed(69)
-    model = FNN(all_data_train.shape[-1], 7).to(device=target_device)
-    optim = torch.optim.Adamax(model.parameters(), lr=1e-3)
-
-    train_func(model, optim, all_data_train, all_label_train, all_data_test, all_label_test, 30, target_device, confusion_bool=True)
+    model_and_data = train_with_cv(all_data_train,
+                                   all_data_test,
+                                   all_labels_train,
+                                   all_labels_test,
+                                   train_func
+                                   )
 
 
 if __name__ == '__main__':

@@ -16,7 +16,6 @@ def save_data():
     data_train_old, labels_train_old, data_test_old, labels_test_old = split_by_1d(data_orig, labels_orig)
 
 
-
     np.save(os.path.join(data_path, 'data_train.npy'), data_train_old)
     np.save(os.path.join(data_path,'labels_train.npy'), labels_train_old)
     np.save(os.path.join(data_path,'data_test.npy'), data_test_old)

@@ -120,3 +120,9 @@ def redistribute_labels(data, labels, seed: int = 6942066):
     print(f"{randomized_data.shape=} {randomized_labels.shape=}")
 
     return randomized_data, randomized_labels.reshape((len(labels_unique), smallest_class_k))
+
+
+def unison_shuffled_copies(a, b):
+    assert len(a) == len(b)
+    p = np.random.permutation(len(a))
+    return a[p], b[p]
