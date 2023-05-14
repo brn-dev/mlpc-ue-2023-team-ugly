@@ -26,12 +26,10 @@ def remove_correlated_columns(data_train: np.ndarray, data_test: np.ndarray) -> 
     return data_train, data_test
 
 def normalize_data(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.ndarray, np.ndarray, StandardScaler]:
-    print(data_train.shape)
     data_train_flattened = data_train.reshape((-1, data_train.shape[-1]))
     data_test_flattened = data_test.reshape((-1, data_test.shape[-1]))
 
     scaler = StandardScaler()
-    print(data_train_flattened.shape)
     scaler.fit(data_train_flattened)
 
     data_train_scaled = scaler.transform(data_train_flattened)
