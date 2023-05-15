@@ -22,8 +22,6 @@ class TransformerHyperParameters(HyperParameters):
 
     in_features: int
 
-    lr: float
-
 
 class ClassificationTransformer(nn.Module):
 
@@ -38,7 +36,7 @@ class ClassificationTransformer(nn.Module):
             out_features=hyper_parameters.d_model
         )
         self.tgt_embedding = nn.Embedding(
-            num_embeddings=hyper_parameters.out_size + 1,
+            num_embeddings=hyper_parameters.out_size + 2,
             embedding_dim=hyper_parameters.d_model
         )
         self.positional_encoder = PositionalEncoding(
@@ -64,18 +62,20 @@ class ClassificationTransformer(nn.Module):
         tgt = self.tgt_embedding(tgt)
 
         # TODO: do we need this?
-        src *= math.sqrt(512)
-        tgt *= math.sqrt(512)
+        src *= math.sqrt(self.hyper_parameters.d_model)
+        tgt *= math.sqrt(self.hyper_parameters.d_model)
 
         src = self.positional_encoder(src)
         tgt = self.positional_encoder(tgt)
 
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size(0)).to(get_torch_device())
+        src_mask = None  # nn.Transformer.generate_square_subsequent_mask(src.size(0)).to(get_torch_device())
 
         transformer_out = self.transformer(
             src,
             tgt,
-            tgt_mask=tgt_mask
+            src_mask,
+            tgt_mask
         )
         out = self.out_fnn(transformer_out)
 

@@ -6,7 +6,7 @@ BIRD_NAMES = ['comcuc', 'cowpig1', 'eucdov', 'eueowl1', 'grswoo', 'tawowl1']
 
 def load_annotations_for_file(bird: str, file_nr, ds_base_path: str) -> tuple[np.array, np.array]:
     data = np.load(os.path.join(ds_base_path, bird, f'{file_nr}.npy'))
-    labels = np.load(os.path.join(ds_base_path, bird, f'{file_nr}.labels.npy'))
+    labels = np.load(os.path.join(ds_base_path, bird, f'{file_nr}.labels.npy')).astype(int)
     return data, labels
 
 

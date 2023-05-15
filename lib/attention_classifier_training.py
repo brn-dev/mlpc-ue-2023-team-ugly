@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, Iterable
 
 import numpy as np
 import sklearn
@@ -9,51 +9,53 @@ import torch.optim as optim
 import torch.utils.data
 
 from lib.confusion_matrix import display_confmat
-from lib.ds.torch_dataset import create_offset_data_loader
-from lib.model.classification_transformer import TransformerHyperParameters, ClassificationTransformer
+from lib.ds.torch_dataset import create_data_loader
+from lib.model.attention_classifier import AttentionClassifier, AttentionClassifierHyperParameters
 from lib.torch_device import get_torch_device
+from lib.torch_utils import count_parameters
 from lib.training import train_with_cv
 from lib.training_hyper_parameters import TrainingHyperParameters
 
 
-def train_transformer_with_cv(
+def train_attention_classifier_with_cv(
         data: np.ndarray,
         labels: np.ndarray,
-        hyper_parameters: TransformerHyperParameters,
+        hyper_parameters: AttentionClassifierHyperParameters,
         training_hyper_parameters: TrainingHyperParameters,
         device: torch.device
 ):
     def create_and_train_func(d: np.ndarray, l: np.ndarray):
-        return train_transformer(d, l, hyper_parameters, training_hyper_parameters, device)
+        return train_attention_classifier(d, l, hyper_parameters, training_hyper_parameters, device)
 
-    def eval_func(network: nn.Module, d: np.ndarray, l: np.ndarray):
-        data_loader = create_offset_data_loader(d, l, batch_size=training_hyper_parameters.batch_size)
-        test_network(network, data_loader, device)
+    def eval_func(network: AttentionClassifier, d: np.ndarray, l: np.ndarray):
+        data_loader = create_data_loader(d, l, batch_size=training_hyper_parameters.batch_size)
+        test_attention_classifier(network, data_loader, device)
 
 
     train_with_cv(data, labels, create_and_train_func, eval_func)
 
 
-def train_transformer(
+def train_attention_classifier(
         data: np.ndarray,
         labels: np.ndarray,
-        hyper_parameters: TransformerHyperParameters,
+        hyper_parameters: AttentionClassifierHyperParameters,
         training_hyper_parameters: TrainingHyperParameters,
         device: torch.device
-) -> ClassificationTransformer:
-    transformer = ClassificationTransformer(hyper_parameters)
-    transformer.to(device)
+) -> AttentionClassifier:
+    attention_classifier = AttentionClassifier(hyper_parameters)
+    print(f'Training AttentionClassifier with {count_parameters(attention_classifier)} parameters')
+    attention_classifier.to(device)
 
-    optimizer = optim.Adam(transformer.parameters(), lr=training_hyper_parameters.lr, betas=(0.9, 0.98), eps=1e-9)
+    optimizer = optim.Adam(attention_classifier.parameters(), lr=training_hyper_parameters.lr, betas=(0.9, 0.98), eps=1e-9)
     lr_scheduler = create_lr_scheduler(optimizer, training_hyper_parameters)
 
-    data_loader = create_offset_data_loader(data, labels, training_hyper_parameters.batch_size)
+    data_loader = create_data_loader(data, labels, training_hyper_parameters.batch_size)
 
     loss_weight = calculate_loss_weight(labels)
     print(f'{loss_weight = }')
 
-    train_network(
-        transformer,
+    _train_attention_classifier(
+        attention_classifier,
         data_loader,
         optimizer,
         loss_weight,
@@ -62,12 +64,12 @@ def train_transformer(
         device
     )
 
-    return transformer
+    return attention_classifier
 
 
 
-def train_network(
-        model: nn.Module,
+def _train_attention_classifier(
+        model: AttentionClassifier,
         data_loader: torch.utils.data.DataLoader,
         optimizer: torch.optim.Optimizer,
         loss_weight: torch.Tensor,
@@ -84,17 +86,16 @@ def train_network(
 
     for epoch in range(num_epochs):
         epoch_loss, num_correct, num_samples = 0.0, 0, 0
-        for data, target_input, target_expected in data_loader:
-            data, target_input, target_expected = reshape_for_transformer(data, target_input, target_expected)
-            data, target_input, target_expected = \
-                data.float().to(device), target_input.long().to(device), target_expected.long().to(device)
+        for data, labels in data_loader:
+            data, labels = transpose_all(data, labels, dim0=0, dim1=1)
+            data, labels = data.float().to(device), labels.long().to(device)
 
             optimizer.zero_grad()
 
-            pred = model(data, target_input)
+            pred = model.forward(data)
 
-            pred, target_expected = reshape_for_loss(pred, target_expected)
-            loss = criterion(pred, target_expected)
+            pred, labels = reshape_for_loss(pred, labels)
+            loss = criterion(pred, labels)
 
             loss.backward()
             optimizer.step()
@@ -102,18 +103,18 @@ def train_network(
             epoch_loss += loss.detach().item()
 
             pred_labels = pred.argmax(dim=1).view(-1).long()
-            num_correct += int((pred_labels == target_expected.view(-1)).sum().item())
+            num_correct += int((pred_labels == labels.view(-1)).sum().item())
             num_samples += pred_labels.shape[0]
 
             all_pred_labels = torch.cat((all_pred_labels, pred_labels.cpu()))
-            all_target_labels = torch.cat((all_target_labels, target_expected.cpu()))
+            all_target_labels = torch.cat((all_target_labels, labels.cpu()))
 
         if lr_scheduler is not None:
             lr_scheduler.step()
 
         acc = num_correct / num_samples
         bacc = sklearn.metrics.balanced_accuracy_score(all_target_labels, all_pred_labels)
-        print(f'Epoch {epoch:>2}: '
+        print(f'Training Epoch {epoch:<3}: '
               f'{epoch_loss = :.6f}, '
               f'{num_correct = :>5}, '
               f'{num_samples = :>5}, '
@@ -124,8 +125,8 @@ def train_network(
     print('Training finished')
 
 
-def test_network(
-        model: nn.Module,
+def test_attention_classifier(
+        model: AttentionClassifier,
         data_loader: torch.utils.data.DataLoader,
         device: torch.device
 ):
@@ -139,29 +140,21 @@ def test_network(
     all_target_labels = torch.Tensor().long()
 
     with torch.no_grad():
-        for data, target_input, target_expected in data_loader:
-            data, target_input, target_expected = reshape_for_transformer(data, target_input, target_expected)
-            data, target_input, target_expected = \
-                data.float().to(device), target_input.long().to(device), target_expected.long().to(device)
+        for data, labels in data_loader:
+            data, labels = transpose_all(data, labels, dim0=0, dim1=1)
+            data, labels = data.float().to(device), labels.long().to(device)
 
-            target_input = target_input[:1, :]
+            pred = model.forward(data)
 
-            for _ in range(target_expected.size(0)):
-                pred = model(data, target_input)
-                last_predicted_value = torch.argmax(pred[-1, :, :].unsqueeze(0), dim=-1)
-                target_input = torch.cat((target_input, last_predicted_value.detach()), 0)
-
-            pred, target_expected = reshape_for_loss(pred, target_expected)
-            loss += float(criterion(pred, target_expected).item())
+            pred, labels = reshape_for_loss(pred, labels)
+            loss += criterion(pred, labels).detach().item()
 
             pred_labels = pred.argmax(dim=1).view(-1).long()
-            num_correct += int((pred_labels == target_expected.view(-1)).sum().item())
+            num_correct += int((pred_labels == labels.view(-1)).sum().item())
             num_samples += pred_labels.shape[0]
 
-            print(pred_labels, target_expected)
-
             all_pred_labels = torch.cat((all_pred_labels, pred_labels.cpu()))
-            all_target_labels = torch.cat((all_target_labels, target_expected.cpu()))
+            all_target_labels = torch.cat((all_target_labels, labels.cpu()))
 
     loss, acc = loss / num_samples, num_correct / num_samples
     bacc = sklearn.metrics.balanced_accuracy_score(all_target_labels, all_pred_labels)
@@ -170,13 +163,8 @@ def test_network(
     display_confmat(all_pred_labels, all_target_labels)
 
 
-def reshape_for_transformer(
-        data: torch.Tensor,
-        target_input: torch.Tensor,
-        target_expected: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    data, target_input, target_expected = (torch.transpose(x, 0, 1) for x in [data, target_input, target_expected])
-    return data, target_input, target_expected
+def transpose_all(*tensors: torch.Tensor, dim0: int, dim1: int):
+    return tuple((torch.transpose(x, dim0, dim1) for x in tensors))
 
 
 def reshape_for_loss(

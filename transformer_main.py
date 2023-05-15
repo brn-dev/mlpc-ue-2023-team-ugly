@@ -1,14 +1,17 @@
 import torch
 
+import lib.torch_device
 from lib.data_preprocessing import remove_correlated_columns
 from lib.ds.bird_classes import NUM_CLASSES
 from lib.ds.dataset_loading import load_all_data
 from lib.ds.dataset_splitting import split
 from lib.model.classification_transformer import TransformerHyperParameters
 from lib.torch_device import get_torch_device
+from lib.training_hyper_parameters import TrainingHyperParameters
 from lib.transformer_training import train_transformer_with_cv
 
 def main():
+    lib.torch_device.PREFERRED = 'cpu'
     device = get_torch_device()
 
     data_train, labels_train, data_test, labels_test = split(*load_all_data('dataset'), seed=69420)
@@ -25,10 +28,15 @@ def main():
         dim_feedforward=2048,
         dropout=0.1,
         out_size=NUM_CLASSES,
-        in_features=data_train.shape[-1],
+        in_features=data_train.shape[-1]
     )
 
-    train_transformer_with_cv(data_train, labels_train, hyper_parameters, device)
+    training_hyper_parameters = TrainingHyperParameters(
+        num_epochs=1,
+        lr=1e-4
+    )
+
+    train_transformer_with_cv(data_train, labels_train, hyper_parameters, training_hyper_parameters, device)
 
 
 
