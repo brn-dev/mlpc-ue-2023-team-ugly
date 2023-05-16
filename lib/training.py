@@ -1,26 +1,20 @@
 from collections import Callable
-from typing import Any
 
 import numpy as np
 
 from lib.ds.dataset_splitting import create_folds
 from lib.data_preprocessing import normalize_data
+from lib.ds.numpy_dataset import NumpyDataset
 
-# Parameters: train_data, train_labels; Returns: Model
-CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
-
-# Parameters: validation_data, validation_labels
-EvalFunc = Callable[[Any, np.ndarray, np.ndarray], None]
+CVTrainFunc = Callable[[int, NumpyDataset, NumpyDataset], None]
 
 
 def train_with_cv(
-        data: np.ndarray,
-        labels: np.ndarray,
-        create_and_train_func: CreateAndTrainFunc,
-        eval_func: EvalFunc,
+        dataset: NumpyDataset,
+        train_func: CVTrainFunc,
         n_folds=10
 ):
-    data_folds, labels_folds = create_folds(data, labels, n_folds)
+    data_folds, labels_folds = create_folds(dataset.data, dataset.labels, n_folds)
 
     for fold in range(n_folds):
         data_validation = data_folds[fold]
@@ -33,8 +27,11 @@ def train_with_cv(
 
         data_train_normalized, data_validation_normalized = normalize_data(data_train, data_validation)
 
-        model = create_and_train_func(data_train_normalized, labels_train)
-        eval_func(model, data_validation_normalized, labels_validation)
+        train_func(
+            fold,
+            NumpyDataset(data_train_normalized, labels_train),
+            NumpyDataset(data_validation_normalized, labels_validation)
+        )
 
 
 

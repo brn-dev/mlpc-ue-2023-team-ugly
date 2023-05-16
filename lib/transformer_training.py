@@ -16,22 +16,22 @@ from lib.training import train_with_cv
 from lib.training_hyper_parameters import TrainingHyperParameters
 
 
-def train_transformer_with_cv(
-        data: np.ndarray,
-        labels: np.ndarray,
-        hyper_parameters: TransformerHyperParameters,
-        training_hyper_parameters: TrainingHyperParameters,
-        device: torch.device
-):
-    def create_and_train_func(d: np.ndarray, l: np.ndarray):
-        return train_transformer(d, l, hyper_parameters, training_hyper_parameters, device)
-
-    def eval_func(network: nn.Module, d: np.ndarray, l: np.ndarray):
-        data_loader = create_offset_data_loader(d, l, batch_size=training_hyper_parameters.batch_size)
-        test_network(network, data_loader, device)
-
-
-    train_with_cv(data, labels, create_and_train_func, eval_func)
+# def train_transformer_with_cv(
+#         data: np.ndarray,
+#         labels: np.ndarray,
+#         hyper_parameters: TransformerHyperParameters,
+#         training_hyper_parameters: TrainingHyperParameters,
+#         device: torch.device
+# ):
+#     def create_and_train_func(d: np.ndarray, l: np.ndarray):
+#         return train_transformer(d, l, hyper_parameters, training_hyper_parameters, device)
+#
+#     def eval_func(network: nn.Module, d: np.ndarray, l: np.ndarray):
+#         data_loader = create_offset_data_loader(d, l, batch_size=training_hyper_parameters.batch_size)
+#         test_network(network, data_loader, device)
+#
+#
+#     train_with_cv(data, labels, create_and_train_func, eval_func)
 
 
 def train_transformer(

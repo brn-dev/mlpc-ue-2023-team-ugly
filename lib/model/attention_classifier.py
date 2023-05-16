@@ -1,23 +1,28 @@
 from dataclasses import dataclass
+from typing import Callable
 
 import torch
 from torch import nn
 
+from lib.model.fnn import FNN, FNNHyperParameters
 from lib.model.hyper_parameters import HyperParameters
 from lib.model.positional_encoding import PositionalEncoding
 
 
 @dataclass
 class AttentionClassifierHyperParameters(HyperParameters):
+    in_features: int
+    out_features: int
+
     d_model: int
     num_heads: int
     stack_size: int
     dropout: float
 
+    in_linear_hidden_out_features: list[int]
+    out_linear_hidden_out_features: list[int]
 
-    out_size: int
-
-    in_features: int
+    linear_activation_provider: Callable[[], nn.Module]
 
 
 class AttentionClassifier(nn.Module):
@@ -25,13 +30,13 @@ class AttentionClassifier(nn.Module):
         super().__init__()
         # TODO: dropout
 
-        self.hyper_parameters = hyper_parameters
         self.stack_size = hyper_parameters.stack_size
 
-        self.src_embedding = nn.Linear(
+        self.in_fnn = FNN(FNNHyperParameters(
             in_features=hyper_parameters.in_features,
-            out_features=hyper_parameters.d_model
-        )
+            layers_out_features=hyper_parameters.in_linear_hidden_out_features + [hyper_parameters.d_model],
+            activation_provider=hyper_parameters.linear_activation_provider
+        ))
         self.positional_encoder = PositionalEncoding(
             d_model=hyper_parameters.d_model,
             max_len=1024
@@ -45,13 +50,17 @@ class AttentionClassifier(nn.Module):
             for _
             in range(hyper_parameters.stack_size)
         ])
-        self.out_fnn = nn.Linear(
+        # self.norm = nn.LayerNorm(
+        #     hyper_parameters.d_model
+        # )
+        self.out_fnn = FNN(FNNHyperParameters(
             in_features=hyper_parameters.d_model,
-            out_features=hyper_parameters.out_size
-        )
+            layers_out_features=hyper_parameters.out_linear_hidden_out_features + [hyper_parameters.out_features],
+            activation_provider=hyper_parameters.linear_activation_provider
+        ))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        embedded = self.src_embedding.forward(x)
+        embedded = self.in_fnn.forward(x)
 
         embedded_with_pos = self.positional_encoder.forward(embedded)
 
@@ -65,6 +74,8 @@ class AttentionClassifier(nn.Module):
                 key=attention_out,
                 value=attention_out
             )[0]
+
+        # attention_out = self.norm(embedded_with_pos + attention_out)
 
         out = self.out_fnn.forward(attention_out)
 
