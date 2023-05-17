@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 import numpy as np
@@ -5,17 +6,16 @@ import sklearn
 import sklearn.metrics
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.utils.data
+from sklearn.preprocessing import StandardScaler
 
 from lib.confusion_matrix import display_confmat
 from lib.ds.numpy_dataset import NumpyDataset
 from lib.ds.torch_dataset import create_data_loader
 from lib.model.attention_classifier import AttentionClassifier, AttentionClassifierHyperParameters
-from lib.model.model_persistence import save_model
+from lib.model.model_persistence import save_model_with_scaler
 from lib.torch_device import get_torch_device
-from lib.torch_utils import count_parameters
-from lib.training import train_with_cv
+from lib.training import train_with_cv, get_lr, create_lr_scheduler, count_parameters
 from lib.training_hyper_parameters import TrainingHyperParameters
 
 
@@ -27,7 +27,7 @@ def train_attention_classifier_with_cv(
 ):
     models: list[AttentionClassifier] = []
 
-    def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset):
+    def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset, normalization_scaler: StandardScaler):
         print(f'Training fold {fold_nr}')
         model = train_attention_classifier(
             hyper_parameters,
@@ -41,7 +41,11 @@ def train_attention_classifier_with_cv(
         eval_data_loader = create_data_loader(eval_ds.data, eval_ds.labels, training_hyper_parameters.batch_size)
         test_attention_classifier(model, eval_data_loader, device, show_confmat=True)
 
-        save_model(model, f'attention_classifier fold-{fold_nr}.pt')
+        save_model_with_scaler(
+            model,
+            normalization_scaler,
+            f'attention_classifier cv{get_current_timestamp()} fold-{fold_nr}'
+        )
         models.append(model)
 
     train_with_cv(dataset, train_func)
@@ -59,12 +63,7 @@ def train_attention_classifier(
     attention_classifier.to(device)
     print(f'Training AttentionClassifier with {count_parameters(attention_classifier)} parameters')
 
-    optimizer = optim.Adamax(
-        attention_classifier.parameters(),
-        lr=training_hyper_parameters.lr,
-        betas=(0.9, 0.98),
-        eps=1e-9
-    )
+    optimizer = training_hyper_parameters.optimizer_provider(attention_classifier, training_hyper_parameters.lr)
     lr_scheduler = create_lr_scheduler(optimizer, training_hyper_parameters)
 
     train_data_loader = create_data_loader(train_ds.data, train_ds.labels, training_hyper_parameters.batch_size)
@@ -158,7 +157,8 @@ def test_attention_classifier(
         model: AttentionClassifier,
         data_loader: torch.utils.data.DataLoader,
         device: torch.device,
-        show_confmat: bool = True
+        show_confmat: bool = True,
+        confmat_title: str = None
 ):
     loss, num_correct, num_samples = 0.0, 0, 0
 
@@ -196,7 +196,7 @@ def test_attention_classifier(
     )
 
     if show_confmat:
-        display_confmat(all_pred_labels, all_target_labels)
+        display_confmat(all_pred_labels, all_target_labels, confmat_title)
 
 
 def transpose_all(*tensors: torch.Tensor, dim0: int, dim1: int):
@@ -207,8 +207,8 @@ def reshape_for_loss(
         pred: torch.Tensor,
         target_expected: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    pred = torch.flatten(pred[:-1, :, :], end_dim=1)
-    target_expected = torch.flatten(target_expected[:-1, :])
+    pred = torch.flatten(pred, end_dim=1)
+    target_expected = torch.flatten(target_expected)
     return pred, target_expected
 
 
@@ -228,12 +228,6 @@ def calculate_loss_weight(labels: np.ndarray) -> torch.Tensor:
 #     birds_count = counts[1:].sum()
 #     return torch.Tensor([1] + [other_count / birds_count * 10] * (len(counts) - 1)).to(get_torch_device())
 
-def create_lr_scheduler(optimizer: torch.optim.Optimizer, training_hyper_parameters: TrainingHyperParameters):
-    if training_hyper_parameters.lr_scheduler_provider is None:
-        return None
-    return training_hyper_parameters.lr_scheduler_provider(optimizer)
+def get_current_timestamp() -> str:
+    return datetime.now().strftime('%Y-%m-%d_%H.%M')
 
-
-def get_lr(optimizer: torch.optim.Optimizer) -> float:
-    for param_group in optimizer.param_groups:
-        return param_group['lr']

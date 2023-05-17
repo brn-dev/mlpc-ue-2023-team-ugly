@@ -14,6 +14,7 @@ class AttentionClassifierHyperParameters(HyperParameters):
     in_features: int
     out_features: int
 
+    self_attention: bool
     d_model: int
     num_heads: int
     stack_size: int
@@ -30,6 +31,7 @@ class AttentionClassifier(nn.Module):
         super().__init__()
         # TODO: dropout
 
+        self.self_attention = hyper_parameters.self_attention
         self.stack_size = hyper_parameters.stack_size
 
         self.in_fnn = FNN(FNNHyperParameters(
@@ -59,21 +61,28 @@ class AttentionClassifier(nn.Module):
             activation_provider=hyper_parameters.linear_activation_provider
         ))
 
+    # x: (N, B, D)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         embedded = self.in_fnn.forward(x)
 
         embedded_with_pos = self.positional_encoder.forward(embedded)
 
-        query = self.positional_encoder.forward(torch.zeros_like(embedded_with_pos))
+        positional_query = self.positional_encoder.forward(torch.zeros_like(embedded_with_pos))
 
         attention_out = embedded_with_pos
-
         for i in range(self.stack_size):
-            attention_out = self.attention_stack[i].forward(
-                query=query,
-                key=attention_out,
-                value=attention_out
-            )[0]
+            if self.self_attention:
+                attention_out = self.attention_stack[i].forward(
+                    query=attention_out,
+                    key=attention_out,
+                    value=attention_out
+                )[0]
+            else:
+                attention_out = self.attention_stack[i].forward(
+                    query=positional_query,
+                    key=attention_out,
+                    value=attention_out
+                )[0]
 
         # attention_out = self.norm(embedded_with_pos + attention_out)
 
