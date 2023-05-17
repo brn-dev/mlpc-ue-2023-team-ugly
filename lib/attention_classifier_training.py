@@ -2,8 +2,6 @@ from datetime import datetime
 from typing import Optional
 
 import numpy as np
-import sklearn
-import sklearn.metrics
 import torch
 import torch.nn as nn
 import torch.utils.data
@@ -12,6 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from lib.confusion_matrix import display_confmat
 from lib.ds.numpy_dataset import NumpyDataset
 from lib.ds.torch_dataset import create_data_loader
+from lib.metrics import CVFoldsMetrics, TrainingRunMetrics, MetricsCollector, TrainAndEvaluationMetrics, Metrics
 from lib.model.attention_classifier import AttentionClassifier, AttentionClassifierHyperParameters
 from lib.model.model_persistence import save_model_with_scaler
 from lib.torch_device import get_torch_device
@@ -24,13 +23,17 @@ def train_attention_classifier_with_cv(
         training_hyper_parameters: TrainingHyperParameters,
         dataset: NumpyDataset,
         device: torch.device
-):
-    models_with_scalers: list[tuple[AttentionClassifier, StandardScaler]] = []
+) -> tuple[
+    list[tuple[AttentionClassifier, StandardScaler]],
+    CVFoldsMetrics
+]:
     timestamp = get_current_timestamp()
+    models_with_scalers: list[tuple[AttentionClassifier, StandardScaler]] = []
+    cv_folds_metrics: CVFoldsMetrics = []
 
     def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset, normalization_scaler: StandardScaler):
         print(f'Training fold {fold_nr}')
-        model = train_attention_classifier(
+        model, training_run_metrics = train_attention_classifier(
             hyper_parameters,
             training_hyper_parameters,
             train_ds,
@@ -40,7 +43,7 @@ def train_attention_classifier_with_cv(
 
         print(f'Evaluating fold {fold_nr}')
         eval_data_loader = create_data_loader(eval_ds.data, eval_ds.labels, training_hyper_parameters.batch_size)
-        test_attention_classifier(
+        evaluate_attention_classifier(
             model,
             eval_data_loader,
             device,
@@ -54,9 +57,10 @@ def train_attention_classifier_with_cv(
             f'attention_classifier cv{timestamp} fold-{fold_nr}'
         )
         models_with_scalers.append((model, normalization_scaler))
+        cv_folds_metrics.append(training_run_metrics)
 
     train_with_cv(dataset, train_func)
-    return models_with_scalers
+    return models_with_scalers, cv_folds_metrics
 
 
 def train_attention_classifier(
@@ -65,7 +69,7 @@ def train_attention_classifier(
         train_ds: NumpyDataset,
         eval_ds: Optional[NumpyDataset],
         device: torch.device
-) -> AttentionClassifier:
+) -> tuple[AttentionClassifier, TrainingRunMetrics]:
     attention_classifier = AttentionClassifier(hyper_parameters)
     attention_classifier.to(device)
     print(f'Training AttentionClassifier with {count_parameters(attention_classifier)} parameters')
@@ -83,7 +87,7 @@ def train_attention_classifier(
     loss_weight = calculate_loss_weight(train_ds.labels)
     print(f'{loss_weight = }')
 
-    _train_attention_classifier(
+    training_run_metrics = _train_attention_classifier(
         attention_classifier,
         train_data_loader,
         eval_data_loader,
@@ -94,7 +98,7 @@ def train_attention_classifier(
         device
     )
 
-    return attention_classifier
+    return attention_classifier, training_run_metrics
 
 
 def _train_attention_classifier(
@@ -106,75 +110,85 @@ def _train_attention_classifier(
         num_epochs: int,
         lr_scheduler: Optional[torch.optim.lr_scheduler.MultiStepLR],
         device: torch.device
-):
+) -> TrainingRunMetrics:
     model.train()
-
     criterion = nn.CrossEntropyLoss(weight=loss_weight)
 
-    all_pred_labels = torch.Tensor().long()
-    all_target_labels = torch.Tensor().long()
+    training_run_metrics: TrainingRunMetrics = []
 
     for epoch in range(num_epochs):
-        epoch_loss, num_correct, num_samples = 0.0, 0, 0
-        for data, labels in train_data_loader:
-            data, labels = transpose_all(data, labels, dim0=0, dim1=1)
-            data, labels = data.float().to(device), labels.long().to(device)
-
-            optimizer.zero_grad()
-
-            pred = model.forward(data)
-
-            pred, labels = reshape_for_loss(pred, labels)
-            loss = criterion(pred, labels)
-
-            loss.backward()
-            optimizer.step()
-
-            epoch_loss += loss.detach().item()
-
-            pred_labels = pred.argmax(dim=1).view(-1).long()
-            num_correct += int((pred_labels == labels.view(-1)).sum().item())
-            num_samples += pred_labels.shape[0]
-
-            all_pred_labels = torch.cat((all_pred_labels, pred_labels.cpu()))
-            all_target_labels = torch.cat((all_target_labels, labels.cpu()))
-
-        acc = num_correct / num_samples
-        bacc = sklearn.metrics.balanced_accuracy_score(all_target_labels, all_pred_labels)
-        print(
-            f'Training Epoch {epoch:<3}: '
-            f'lr = {get_lr(optimizer):.6f}, '
-            f'{epoch_loss = :.6f}, '
-            f'{num_correct = :>5}, '
-            f'{num_samples = :>5}, '
-            f'{acc = :.6f}, '
-            f'{bacc = :.6f}'
+        train_metrics, validation_metrics = train_epoch(
+            model,
+            criterion,
+            train_data_loader,
+            eval_data_loader,
+            optimizer,
+            device
         )
 
         if lr_scheduler is not None:
             lr_scheduler.step()
 
-        if eval_data_loader is not None:
-            test_attention_classifier(model, eval_data_loader, device, show_confmat=False)
+        print(f'Training Epoch {epoch:>3}/{num_epochs:<3}: lr = {get_lr(optimizer)}, {train_metrics}')
+        if validation_metrics is not None:
+            print(f'Evaluation Epoch {epoch:>3}/{num_epochs:<3}: {validation_metrics}')
+
+        training_run_metrics.append((train_metrics, validation_metrics))
+
 
     print('Training finished')
+    return training_run_metrics
 
 
-def test_attention_classifier(
+def train_epoch(
+        model: AttentionClassifier,
+        criterion: nn.CrossEntropyLoss,
+        train_data_loader: torch.utils.data.DataLoader,
+        eval_data_loader: Optional[torch.utils.data.DataLoader],
+        optimizer: torch.optim.Optimizer,
+        device: torch.device
+
+) -> TrainAndEvaluationMetrics:
+    metrics_collector = MetricsCollector()
+
+    for data, labels in train_data_loader:
+        data, labels = transpose_all(data, labels, dim0=0, dim1=1)
+        data, labels = data.float().to(device), labels.long().to(device)
+
+        optimizer.zero_grad()
+
+        pred = model.forward(data)
+
+        pred, labels = reshape_for_loss(pred, labels)
+        loss = criterion(pred, labels)
+
+        loss.backward()
+        optimizer.step()
+
+        pred_labels = pred.argmax(dim=1).view(-1).long()
+        metrics_collector.update(loss.detach().item(), pred_labels, labels)
+
+    metrics_collector.detach()
+    train_metrics = metrics_collector.generate_metrics()
+
+    eval_metrics: Optional[Metrics] = None
+    if eval_data_loader is not None:
+        eval_metrics = evaluate_attention_classifier(model, eval_data_loader, device, show_confmat=False)
+
+    return train_metrics, eval_metrics
+
+
+def evaluate_attention_classifier(
         model: AttentionClassifier,
         data_loader: torch.utils.data.DataLoader,
         device: torch.device,
         show_confmat: bool = True,
         confmat_title: str = None
-):
-    loss, num_correct, num_samples = 0.0, 0, 0
-
+) -> Metrics:
     model.eval()
-
     criterion = nn.CrossEntropyLoss()
 
-    all_pred_labels = torch.Tensor().long()
-    all_target_labels = torch.Tensor().long()
+    metrics_collector = MetricsCollector()
 
     with torch.no_grad():
         for data, labels in data_loader:
@@ -184,26 +198,20 @@ def test_attention_classifier(
             pred = model.forward(data)
 
             pred, labels = reshape_for_loss(pred, labels)
-            loss += criterion(pred, labels).detach().item()
 
             pred_labels = pred.argmax(dim=1).view(-1).long()
-            num_correct += int((pred_labels == labels.view(-1)).sum().item())
-            num_samples += pred_labels.shape[0]
+            metrics_collector.update(criterion(pred, labels).detach().item(), pred_labels, labels)
 
-            all_pred_labels = torch.cat((all_pred_labels, pred_labels.cpu()))
-            all_target_labels = torch.cat((all_target_labels, labels.cpu()))
-
-    loss, acc = loss / num_samples, num_correct / num_samples
-    bacc = sklearn.metrics.balanced_accuracy_score(all_target_labels, all_pred_labels)
-    print(
-        f'Evaluated with '
-        f'{loss = :.6f}, '
-        f'{acc = :.6f}, '
-        f'{bacc = :.6f}'
-    )
+    metrics_collector.detach()
 
     if show_confmat:
-        display_confmat(all_pred_labels, all_target_labels, confmat_title)
+        display_confmat(
+            metrics_collector.pred_labels,
+            metrics_collector.target_labels,
+            confmat_title
+        )
+
+    return metrics_collector.generate_metrics()
 
 
 def transpose_all(*tensors: torch.Tensor, dim0: int, dim1: int):
@@ -220,21 +228,10 @@ def reshape_for_loss(
 
 
 def calculate_loss_weight(labels: np.ndarray) -> torch.Tensor:
-    # print(f'{np.min(labels) = }')
-    # print(f'{torch.flatten(torch.Tensor(labels).long()).min() = }')
     counts = torch.bincount(torch.flatten(torch.Tensor(labels).long()))
     counts_max = counts.max()
     return (counts_max / counts).to(get_torch_device())
 
 
-# def calculate_loss_weight(labels: np.ndarray) -> torch.Tensor:
-#     print(f'{np.min(labels) = }')
-#     print(f'{torch.flatten(torch.Tensor(labels).long()).min() = }')
-#     counts = torch.bincount(torch.flatten(torch.Tensor(labels).long()))
-#     other_count = counts[0]
-#     birds_count = counts[1:].sum()
-#     return torch.Tensor([1] + [other_count / birds_count * 10] * (len(counts) - 1)).to(get_torch_device())
-
 def get_current_timestamp() -> str:
     return datetime.now().strftime('%Y-%m-%d_%H.%M')
-
