@@ -36,5 +36,5 @@ def load_all_data(ds_base_path: str):
     return data, labels
 
 def flatten(data: np.array, labels: np.array) -> tuple[np.array, np.array]:
-    return data.flatten(), labels.flatten()
+    return data.reshape(-1, data.shape[-1]), labels.flatten()
 

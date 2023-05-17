@@ -7,12 +7,14 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import balanced_accuracy_score
 from lib.training import train_with_cv
 from lib.data_preprocessing import normalize_data
+from lib.ds.dataset_balancing import BalancingDataset
 from lib.ds.dataset_loading import flatten
 from torch.utils.data import DataLoader, TensorDataset
+import dill as pkl
 import torch
 
+dataset_path = os.path.join('np_data', 'np_data_90corr')
 
-dataset_path = 'np_data_new'
 
 def main():
     # data_train_folds_down = np.load(os.path.join('np_data_90corr_select150best', 'data_train_folds_down.npy'))
@@ -36,14 +38,14 @@ def main():
         clf = model
 
         data_train = torch.from_numpy(data_train)
-        labels_train = torch.from_numpy(labels_train)
+        labels_train = torch.from_numpy(labels_train).long()
         data_train = TensorDataset(data_train, labels_train)
 
         data_test = torch.from_numpy(data_test)
-        labels_test = torch.from_numpy(labels_test)
+        labels_test = torch.from_numpy(labels_test).long()
         data_test = TensorDataset(data_test, labels_test)
 
-        loader_train = DataLoader(data_train, batch_size=32, shuffle=True)
+        loader_train = DataLoader(BalancingDataset(data_train), batch_size=32, shuffle=True)
         loader_test = DataLoader(data_test, batch_size=32, shuffle=False)
         optim = optim
         print(clf, end='\n\n')
@@ -90,6 +92,22 @@ def main():
 
         performances['train'] = train_acc_loss
         performances['valid'] = valid_acc_loss
+
+        plt.plot(np.arange(1, nr_epochs + 1), train_losses, label='train')
+        plt.plot(np.arange(1, nr_epochs + 1), valid_losses, label='validation')
+        plt.title('Loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend()
+
+        plt.figure()
+        plt.plot(np.arange(1, nr_epochs + 1), train_b_accuracies, label='train')
+        plt.plot(np.arange(1, nr_epochs + 1), valid_b_accuracies, label='validation')
+        plt.title('Balanced accuracy')
+        plt.ylabel('accuracy')
+        plt.xlabel('epoch')
+        plt.legend()
+        plt.show()
 
         test_network(clf, loader_test, target_device, confusion_bool=confusion_bool)
 
@@ -146,22 +164,26 @@ def main():
 
         if confusion_bool:
             confusion_m = confusion_matrix(targets, predictions, normalize='true')
-            confusion_display = ConfusionMatrixDisplay(confusion_m)
-            confusion_display.plot()
+            _, ax = plt.subplots(1, figsize=(8, 8))
+            confusion_display = ConfusionMatrixDisplay(confusion_m,
+                                                       display_labels=['other', 'comcuc', 'cowpig1', 'eucdov',
+                                                                       'eueowl1', 'grswoo', 'tawowl1'])
+            confusion_display.plot(ax=ax, cmap='magma')
+            ax.set_title('Confusion matrix computed on the test set')
             plt.show()
 
         balanced_acc = balanced_accuracy_score(targets, predictions)
         return loss / num_samples, num_correct / num_samples, balanced_acc
 
-    # def get_baseline(labels: np.ndarray) -> float:
-    #     labels = labels.flatten()
-    #     unique_labels, labels_count = np.unique(labels, return_counts=True)
-    #     return max(labels_count) / len(labels)
+    def get_baseline(labels: np.ndarray) -> float:
+        labels = labels.flatten()
+        unique_labels, labels_count = np.unique(labels, return_counts=True)
+        return max(labels_count) / len(labels)
 
-    all_data_train = np.load(os.path.join(dataset_path, 'balanced_data_train_down.npy'))
-    all_data_test = np.load(os.path.join(dataset_path, 'flatten_data_test.npy'))
-    all_labels_train = np.load(os.path.join(dataset_path, 'balanced_labels_train.npy'))
-    all_labels_test = np.load(os.path.join(dataset_path, 'flatten_labels_test.npy'))
+    all_data_train = np.load(os.path.join(dataset_path, 'data_train_folds_down.npy'))
+    all_data_test = np.load(os.path.join(dataset_path, 'data_test_down.npy'))
+    all_labels_train = np.load(os.path.join(dataset_path, 'labels_train_folds_down.npy'))
+    all_labels_test = np.load(os.path.join(dataset_path, 'labels_test.npy'))
     all_data_train, all_data_test = normalize_data(all_data_train, all_data_test)
 
     model_and_data = train_with_cv(all_data_train,
@@ -170,6 +192,30 @@ def main():
                                    all_labels_test,
                                    train_func
                                    )
+
+    fnn5_train = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5_train.pkl'), 'rb'))
+    fnn1_train = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn1_train.pkl'), 'rb'))
+    fnn5_test = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5_test.pkl'), 'rb'))
+    fnn5old_test = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5old_test.pkl'), 'rb'))
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    rects = plt.bar([1, 2],
+                    [fnn1_train['accuracies']['train_b_accuracy'], fnn5_train['accuracies']['train_b_accuracy']],
+                    width=0.25, label='Train Balanced Accuracy ')
+    ax.bar_label(rects, padding=3)
+
+    rects = ax.bar([1.25, 2.25],
+                   [fnn1_train['accuracies']['valid_b_accuracy'], fnn5_train['accuracies']['valid_b_accuracy']],
+                   width=0.25, label='Validation Balanced Accuracy ')
+    ax.bar_label(rects, padding=3)
+
+    ax.set_xticks([1.125, 2.125], ['Model with 5 hidden layer and bigger lr', 'Model with 1 hidden layer and smaller lr'])
+    ax.set_ylabel('Accuracy')
+    ax.set_title('Comparison between two models')
+    ax.legend(ncols=2)
+
+    plt.show()
 
 
 if __name__ == '__main__':

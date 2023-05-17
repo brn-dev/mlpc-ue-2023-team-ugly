@@ -12,21 +12,18 @@ os.makedirs(data_path, exist_ok=True)
 
 def save_data():
     data_orig, labels_orig = load_all_data('dataset')
-
     data_train_old, labels_train_old, data_test_old, labels_test_old = split_by_1d(data_orig, labels_orig)
 
-
     np.save(os.path.join(data_path, 'data_train.npy'), data_train_old)
-    np.save(os.path.join(data_path,'labels_train.npy'), labels_train_old)
-    np.save(os.path.join(data_path,'data_test.npy'), data_test_old)
-    np.save(os.path.join(data_path,'labels_test.npy'), labels_test_old)
-    #
-    data_train = np.load(os.path.join(data_path,'data_train.npy'))
-    labels_train = np.load(os.path.join(data_path,'labels_train.npy'))
-    data_test = np.load(os.path.join(data_path,'data_test.npy'))
-    labels_test = np.load(os.path.join(data_path,'labels_test.npy'))
+    np.save(os.path.join(data_path, 'labels_train.npy'), labels_train_old)
+    np.save(os.path.join(data_path, 'data_test.npy'), data_test_old)
+    np.save(os.path.join(data_path, 'labels_test.npy'), labels_test_old)
 
-    #
+    data_train = np.load(os.path.join(data_path, 'data_train.npy'))
+    labels_train = np.load(os.path.join(data_path, 'labels_train.npy'))
+    data_test = np.load(os.path.join(data_path, 'data_test.npy'))
+    labels_test = np.load(os.path.join(data_path, 'labels_test.npy'))
+
     print(f'{data_train.shape}')
     print(np.all(data_train == data_train_old))
     print(labels_train.shape)
@@ -51,14 +48,13 @@ def save_data():
     np.save(os.path.join(data_path, 'balanced_data_train_down.npy'), balanced_data_train)
     np.save(os.path.join(data_path, 'balanced_labels_train.npy'), balanced_labels_train)
 
-    np.save(os.path.join(data_path, 'flatten_data_test.npy'),flatten_data_test)
+    np.save(os.path.join(data_path, 'flatten_data_test.npy'), flatten_data_test)
     np.save(os.path.join(data_path, 'flatten_labels_test.npy'), flatten_labels_test)
 
     print(balanced_data_train.shape)
     print(balanced_labels_train.shape)
     print(flatten_data_test.shape)
     print(flatten_labels_test.shape)
-
 
 def save_data_2():
     data_train = np.load(os.path.join('np_data','data_train.npy'))

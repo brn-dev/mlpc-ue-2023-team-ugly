@@ -67,17 +67,24 @@ class FNN3(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(input_dim, 1024),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(1024, 1024),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Dropout(p=0.3),
+            nn.LeakyReLU(),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(),
             nn.Linear(512, 256),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(256, 256),
-            nn.ReLU(),
-            nn.Linear(256, output_dim)
+            nn.LeakyReLU(),
+            nn.Linear(256, 256),
+            nn.LeakyReLU(),
+            nn.Linear(256, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, output_dim)
         )
 
         self.apply(self._init_weights)
@@ -131,18 +138,9 @@ class FNN5(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(input_dim, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Dropout(p=0.3),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.ReLU(),
-            nn.Dropout(p=0.1),
-            nn.Linear(256, output_dim)
+            nn.LeakyReLU(),
+            nn.Dropout(p=0.4),
+            nn.Linear(1024, output_dim)
         )
 
         self.apply(self._init_weights)
@@ -155,3 +153,27 @@ class FNN5(nn.Module):
             module.weight.data.normal_(mean=0.0, std=1.0)
             if module.bias is not None:
                 module.bias.data.zero_()
+
+
+class FNN6(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(FNN6, self).__init__()
+
+        self.model = nn.Sequential(
+            nn.Linear(input_dim, input_dim),
+            nn.LeakyReLU(),
+            nn.Dropout(p=0.4),
+            nn.Linear(input_dim, output_dim)
+        )
+
+        self.apply(self._init_weights)
+
+    def forward(self, x):
+        return self.model(x)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=1.0)
+            if module.bias is not None:
+                module.bias.data.zero_()
+

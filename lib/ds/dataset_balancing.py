@@ -19,7 +19,7 @@ class BalancingDataset(Dataset):
         self._index_by_class = {cls: 0 for cls in range(0, 7)}
 
         for sample in base_set:
-            self._samples_by_class[sample[-1]].append(sample)
+            self._samples_by_class[sample[-1].item()].append(sample)
 
         print(
             f'Created balancing dataset. Original number of samples per class: '
