@@ -13,7 +13,7 @@ CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
 # Parameters: validation_data, validation_labels
 EvalFunc = Callable[[Any, np.ndarray, np.ndarray], None]
 
-score_path = os.path.join('knn', 'scores_90corr.pkl')
+score_path = os.path.join('knn', 'scores_90corr', 'all_model_scores.pkl')
 
 def get_baseline(labels: np.ndarray) -> float:
     labels = labels.flatten()
@@ -48,7 +48,7 @@ def train_with_cv(
 
             model = create_and_train_func(data_train_normalized, labels_train_split, k=k)
             valid_acc, valid_b_acc = eval_func(model, data_validation_normalized, labels_validation)
-            train_acc, train_b_acc = eval_func(model, data_train_normalized, labels_train)
+            train_acc, train_b_acc = eval_func(model, data_train_normalized, labels_train_split)
             valid_accuracies = np.append(valid_accuracies, valid_acc)
             valid_b_accuracies = np.append(valid_b_accuracies, valid_b_acc)
             train_accuracies = np.append(train_accuracies, train_acc)
@@ -76,6 +76,4 @@ def train_best(
 
     data_train_normalized, data_test_normalized = normalize_data(data_train, data_test)
     model = create_and_train_func(data_train_normalized, labels_train, k=k)
-    with open(os.path.join('scores_select150best', 'knn.pkl'), 'wb') as f:
-        pkl.dump(model, f)
     print(eval_func(model, data_test_normalized, labels_test))
