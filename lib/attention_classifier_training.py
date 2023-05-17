@@ -165,10 +165,13 @@ def train_epoch(
         loss.backward()
         optimizer.step()
 
-        pred_labels = pred.argmax(dim=1).view(-1).long()
-        metrics_collector.update(loss.detach().item(), pred_labels, labels)
+        pred_labels: torch.Tensor = pred.argmax(dim=1).view(-1).long()
+        metrics_collector.update(
+            loss.detach().item(),
+            pred_labels.cpu().detach().numpy(),
+            labels.cpu().detach().numpy()
+        )
 
-    metrics_collector.detach()
     train_metrics = metrics_collector.generate_metrics()
 
     eval_metrics: Optional[Metrics] = None
@@ -199,10 +202,12 @@ def evaluate_attention_classifier(
 
             pred, labels = reshape_for_loss(pred, labels)
 
-            pred_labels = pred.argmax(dim=1).view(-1).long()
-            metrics_collector.update(criterion(pred, labels).detach().item(), pred_labels, labels)
-
-    metrics_collector.detach()
+            pred_labels: torch.Tensor = pred.argmax(dim=1).view(-1).long()
+            metrics_collector.update(
+                criterion(pred, labels).detach().item(),
+                pred_labels.cpu().detach().numpy(),
+                labels.cpu().detach().numpy()
+            )
 
     if show_confmat:
         display_confmat(

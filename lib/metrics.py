@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, Any
 
+import numpy as np
 import sklearn
-import torch
 
 from lib.torch_device import get_torch_device
 
@@ -49,20 +49,16 @@ class MetricsCollector:
 
     def __init__(self):
         self.total_loss = 0.0
-        self.pred_labels: torch.Tensor = torch.zeros((0,)).long().to(get_torch_device())
-        self.target_labels: torch.Tensor = torch.zeros((0,)).long().to(get_torch_device())
+        self.pred_labels: np.ndarray = np.zeros((0,)).astype(int)
+        self.target_labels: np.ndarray = np.zeros((0,)).astype(int)
 
-    def update(self, loss: float, pred_labels: torch.Tensor, target_labels: torch.Tensor) -> None:
+    def update(self, loss: float, pred_labels: np.ndarray, target_labels: np.ndarray):
         self.total_loss += loss
-        self.pred_labels = torch.cat((self.pred_labels, pred_labels))
-        self.target_labels = torch.cat((self.target_labels, target_labels))
-
-    def detach(self):
-        self.pred_labels = self.pred_labels.detach().cpu()
-        self.target_labels = self.target_labels.detach().cpu()
+        self.pred_labels = np.concatenate((self.pred_labels, pred_labels))
+        self.target_labels = np.concatenate((self.target_labels, target_labels))
 
     def generate_metrics(self) -> Metrics:
-        num_samples = self.target_labels.size(0)
+        num_samples = len(self.target_labels)
         num_correct = int((self.pred_labels == self.target_labels).sum().item())
 
         avg_loss = self.total_loss / num_samples
@@ -78,7 +74,7 @@ class MetricsCollector:
         )
 
 
-def calculate_average_metrics_for_folds(cv_folds_metrics: CVFoldsMetrics) -> TrainAndEvaluationMetrics:
+def calculate_average_metrics_for_final_epoch_of_folds(cv_folds_metrics: CVFoldsMetrics) -> TrainAndEvaluationMetrics:
     avg_train_metrics = calculate_average_metrics([
         fold_metrics[-1][0]
         for fold_metrics
@@ -94,6 +90,25 @@ def calculate_average_metrics_for_folds(cv_folds_metrics: CVFoldsMetrics) -> Tra
         ])
 
     return avg_train_metrics, avg_evaluation_metrics
+
+
+def calculate_average_metrics_per_epoch(cv_folds_metrics: CVFoldsMetrics) -> TrainingRunMetrics:
+    avg_epoch_metrics: TrainingRunMetrics = []
+    for epoch in range(len(cv_folds_metrics[0])):
+        train_avg_metrics = calculate_average_metrics([
+            fold_metrics[epoch][0]
+            for fold_metrics
+            in cv_folds_metrics
+        ])
+        evaluation_avg_metrics = calculate_average_metrics([
+            fold_metrics[epoch][1]
+            for fold_metrics
+            in cv_folds_metrics
+            if fold_metrics[epoch][1] is not None
+        ])
+        avg_epoch_metrics.append((train_avg_metrics, evaluation_avg_metrics))
+    return avg_epoch_metrics
+
 
 def calculate_average_metrics(metrics_list: list[Metrics]):
     avg_metrics = Metrics(
