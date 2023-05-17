@@ -7,8 +7,8 @@ from lib.training import train_with_cv, train_best
 
 
 def main():
-    #data_train_folds_down = np.load(os.path.join('np_data', 'data_train_folds_down.npy'))
-    #labels_data_train_folds_down = np.load(os.path.join('np_data', 'labels_train_folds_down.npy'))
+    data_train_folds_down = np.load(os.path.join('np_data', 'data_train_folds_down.npy'))
+    labels_data_train_folds_down = np.load(os.path.join('np_data', 'labels_train_folds_down.npy'))
 
     data_train_down = np.load(os.path.join('np_data_select150best', 'data_train_down.npy'))
     labels_train = np.load(os.path.join('np_data_select150best', 'labels_train.npy'))
@@ -39,10 +39,7 @@ def main():
         unique_labels, labels_count = np.unique(labels, return_counts=True)
         return max(labels_count) / len(labels)
 
-    #valid_accuracies, valid_balanced_acc, train_accuracies, train_balanced_acc = train_with_cv(data_train_folds_down,
-                                                                                               #labels_data_train_folds_down,
-                                                                                               #create_and_train_func,
-                                                                                               #eval_func)
+    train_with_cv(data_train_folds_down, labels_data_train_folds_down, create_and_train_func, eval_func)
     #best_knn_valid_acc = int(max(valid_accuracies, key=valid_accuracies.get)[4:])
     best_knn_valid_b_acc = int(max(valid_balanced_acc, key=valid_balanced_acc.get)[4:])
     #best_knn_train_acc = int(max(train_accuracies, key=train_accuracies.get)[4:])

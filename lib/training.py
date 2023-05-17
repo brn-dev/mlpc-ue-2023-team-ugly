@@ -12,6 +12,7 @@ CreateAndTrainFunc = Callable[[np.ndarray, np.ndarray], Any]
 # Parameters: validation_data, validation_labels
 EvalFunc = Callable[[Any, np.ndarray, np.ndarray], None]
 
+score_path = os.path.join('knn', 'scores_90corr.pkl')
 
 def get_baseline(labels: np.ndarray) -> float:
     labels = labels.flatten()
@@ -27,16 +28,14 @@ def train_with_cv(
         n_folds=10):
 
     os.makedirs('scores', exist_ok=True)
-    model_valid_accuracies = dict()
-    model_valid_b_accuracies = dict()
-    model_train_accuracies = dict()
-    model_train_b_accuracies = dict()
+    all_models = dict()
 
-    for k in tqdm(range(1, 20, 4)):
+    for k in tqdm(range(1, 21)):
         valid_accuracies = np.array([])
         valid_b_accuracies = np.array([])
         train_accuracies = np.array([])
         train_b_accuracies = np.array([])
+        accuracies = dict()
         for fold in range(n_folds):
             data_validation = data_folds[fold]
             labels_validation = labels_folds[fold]
@@ -56,24 +55,15 @@ def train_with_cv(
             train_accuracies = np.append(train_accuracies, train_acc)
             train_b_accuracies = np.append(train_b_accuracies, train_b_acc)
 
-        model_valid_accuracies[f'knn_{k}'] = valid_accuracies.mean()
-        model_valid_b_accuracies[f'knn_{k}'] = valid_b_accuracies.mean()
-        model_train_accuracies[f'knn_{k}'] = train_accuracies.mean()
-        model_train_b_accuracies[f'knn_{k}'] = train_b_accuracies.mean()
+        accuracies['valid'] = {'acc': valid_accuracies.mean(),
+                               'b_acc': valid_accuracies.mean()}
+        accuracies['train'] = {'acc': train_accuracies.mean(),
+                               'b_acc': train_b_accuracies.mean()}
 
-    with open(os.path.join('scores', 'knn_valid_accuracies.pkl'), 'wb') as f:
-        pkl.dump(model_valid_accuracies, f)
+        all_models[f'knn{k}'] = accuracies
 
-    with open(os.path.join('scores', 'knn_valid_balanced_accuracies.pkl'), 'wb') as f:
-        pkl.dump(model_valid_b_accuracies, f)
-
-    with open(os.path.join('scores', 'knn_training_accuracies.pkl'), 'wb') as f:
-        pkl.dump(model_train_accuracies, f)
-
-    with open(os.path.join('scores', 'knn_training_balanced_accuracies.pkl'), 'wb') as f:
-        pkl.dump(model_train_b_accuracies, f)
-
-    return model_valid_accuracies, model_valid_b_accuracies, model_train_accuracies, model_train_b_accuracies
+    with open(score_path, 'wb') as f:
+        pkl.dump(all_models, f)
 
 
 def train_best(
