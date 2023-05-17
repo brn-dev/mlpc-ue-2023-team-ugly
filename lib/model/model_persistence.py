@@ -14,6 +14,7 @@ MODEL_FOLDER_PATH = os.path.join('saved_models')
 def save_model_with_scaler(model: nn.Module, normalization_scaler: StandardScaler, file_name: str):
     save_model(model, file_name)
     save_scaler(normalization_scaler, file_name)
+    print(f'Saved model with scaler as "{file_name}"')
 
 
 def load_model_with_scaler(file_name: str) -> tuple[nn.Module, StandardScaler]:

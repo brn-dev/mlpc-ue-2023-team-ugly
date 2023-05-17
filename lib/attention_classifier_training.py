@@ -25,7 +25,8 @@ def train_attention_classifier_with_cv(
         dataset: NumpyDataset,
         device: torch.device
 ):
-    models: list[AttentionClassifier] = []
+    models_with_scalers: list[tuple[AttentionClassifier, StandardScaler]] = []
+    timestamp = get_current_timestamp()
 
     def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset, normalization_scaler: StandardScaler):
         print(f'Training fold {fold_nr}')
@@ -39,17 +40,23 @@ def train_attention_classifier_with_cv(
 
         print(f'Evaluating fold {fold_nr}')
         eval_data_loader = create_data_loader(eval_ds.data, eval_ds.labels, training_hyper_parameters.batch_size)
-        test_attention_classifier(model, eval_data_loader, device, show_confmat=True)
+        test_attention_classifier(
+            model,
+            eval_data_loader,
+            device,
+            show_confmat=True,
+            confmat_title=f'Validation Fold {fold_nr} Performance'
+        )
 
         save_model_with_scaler(
             model,
             normalization_scaler,
-            f'attention_classifier cv{get_current_timestamp()} fold-{fold_nr}'
+            f'attention_classifier cv{timestamp} fold-{fold_nr}'
         )
-        models.append(model)
+        models_with_scalers.append((model, normalization_scaler))
 
     train_with_cv(dataset, train_func)
-    return models
+    return models_with_scalers
 
 
 def train_attention_classifier(
