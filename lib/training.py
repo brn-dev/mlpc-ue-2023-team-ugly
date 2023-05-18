@@ -1,4 +1,5 @@
 from collections import Callable
+from typing import Optional
 
 import numpy as np
 import torch
@@ -16,9 +17,10 @@ CVTrainFunc = Callable[[int, NumpyDataset, NumpyDataset, StandardScaler], None]
 def train_with_cv(
         dataset: NumpyDataset,
         train_func: CVTrainFunc,
-        n_folds=10
+        n_folds=10,
+        cv_folds_permute_seed: Optional[int] = None,
 ):
-    data_folds, labels_folds = create_folds(dataset.data, dataset.labels, n_folds)
+    data_folds, labels_folds = create_folds(dataset.data, dataset.labels, n_folds, cv_folds_permute_seed)
 
     for fold in range(n_folds):
         data_validation = data_folds[fold]
@@ -40,6 +42,10 @@ def train_with_cv(
             NumpyDataset(data_validation_normalized, labels_validation),
             normalization_scaler
         )
+
+
+# TODO: should be in attention_classifier_training which should be renamed to torch_training since it should
+#  also work with e.g. a fnn
 
 
 def count_parameters(model: nn.Module) -> int:

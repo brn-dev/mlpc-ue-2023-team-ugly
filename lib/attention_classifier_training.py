@@ -22,7 +22,8 @@ def train_attention_classifier_with_cv(
         hyper_parameters: AttentionClassifierHyperParameters,
         training_hyper_parameters: TrainingHyperParameters,
         dataset: NumpyDataset,
-        device: torch.device
+        device: torch.device,
+        cv_folds_permute_seed: Optional[int]
 ) -> tuple[
     list[tuple[AttentionClassifier, StandardScaler]],
     CVFoldsMetrics
@@ -59,7 +60,7 @@ def train_attention_classifier_with_cv(
         models_with_scalers.append((model, normalization_scaler))
         cv_folds_metrics.append(training_run_metrics)
 
-    train_with_cv(dataset, train_func)
+    train_with_cv(dataset, train_func, cv_folds_permute_seed=cv_folds_permute_seed)
     return models_with_scalers, cv_folds_metrics
 
 

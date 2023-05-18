@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 from lib.ds.dataset_loading import BIRD_NAMES
@@ -40,7 +42,8 @@ def split(
 def create_folds(
         data: np.ndarray,
         labels: np.ndarray,
-        n_folds
+        n_folds: int,
+        cv_folds_permute_seed: Optional[int],
 ) -> tuple[np.ndarray, np.ndarray]:
     n_files = data.shape[0]
     files_per_fold = n_files // n_folds
@@ -50,6 +53,12 @@ def create_folds(
 
     data_folds = np.ndarray((n_folds, files_per_fold, data.shape[1], data.shape[2]))
     labels_folds = np.ndarray((n_folds, files_per_fold, labels.shape[1]))
+
+    birds_folds_permutations = np.repeat(np.arange(N_BIRDS)[np.newaxis, :], N_BIRDS, axis=0)
+    if cv_folds_permute_seed is not None:
+        rng = np.random.default_rng(seed=cv_folds_permute_seed)
+        for bird_nr in range(N_BIRDS):
+            birds_folds_permutations[bird_nr] = rng.permutation(N_BIRDS)
 
     for fold in range(n_folds):
         for bird in range(N_BIRDS):
