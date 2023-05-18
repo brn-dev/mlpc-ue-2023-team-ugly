@@ -18,12 +18,12 @@ class AttentionClassifierHyperParameters(HyperParameters):
     d_model: int
     num_heads: int
     stack_size: int
-    dropout: float
+    attention_dropout: float
 
     in_linear_hidden_out_features: list[int]
     out_linear_hidden_out_features: list[int]
-
     linear_activation_provider: Callable[[], nn.Module]
+    linear_dropout: float
 
 
 class AttentionClassifier(nn.Module):
@@ -37,7 +37,8 @@ class AttentionClassifier(nn.Module):
         self.in_fnn = FNN(FNNHyperParameters(
             in_features=hyper_parameters.in_features,
             layers_out_features=hyper_parameters.in_linear_hidden_out_features + [hyper_parameters.d_model],
-            activation_provider=hyper_parameters.linear_activation_provider
+            activation_provider=hyper_parameters.linear_activation_provider,
+            dropout=hyper_parameters.linear_dropout
         ))
         self.positional_encoder = PositionalEncoding(
             d_model=hyper_parameters.d_model,
@@ -47,7 +48,7 @@ class AttentionClassifier(nn.Module):
             nn.MultiheadAttention(
                 embed_dim=hyper_parameters.d_model,
                 num_heads=hyper_parameters.num_heads,
-                dropout=hyper_parameters.dropout
+                dropout=hyper_parameters.attention_dropout
             )
             for _
             in range(hyper_parameters.stack_size)
@@ -58,7 +59,8 @@ class AttentionClassifier(nn.Module):
         self.out_fnn = FNN(FNNHyperParameters(
             in_features=hyper_parameters.d_model,
             layers_out_features=hyper_parameters.out_linear_hidden_out_features + [hyper_parameters.out_features],
-            activation_provider=hyper_parameters.linear_activation_provider
+            activation_provider=hyper_parameters.linear_activation_provider,
+            dropout=hyper_parameters.linear_dropout
         ))
 
     # x: (N, B, D)

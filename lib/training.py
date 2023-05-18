@@ -54,4 +54,8 @@ def get_lr(optimizer: torch.optim.Optimizer) -> float:
 def create_lr_scheduler(optimizer: torch.optim.Optimizer, training_hyper_parameters: TrainingHyperParameters):
     if training_hyper_parameters.lr_scheduler_provider is None:
         return None
-    return training_hyper_parameters.lr_scheduler_provider(optimizer)
+    return training_hyper_parameters.lr_scheduler_provider(
+        optimizer,
+        training_hyper_parameters.lr_scheduler_milestones,
+        training_hyper_parameters.lr_scheduler_gamma
+    )

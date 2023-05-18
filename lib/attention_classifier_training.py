@@ -116,7 +116,7 @@ def _train_attention_classifier(
 
     training_run_metrics: TrainingRunMetrics = []
 
-    for epoch in range(num_epochs):
+    for epoch in range(1, num_epochs + 1):
         train_metrics, validation_metrics = train_epoch(
             model,
             criterion,
