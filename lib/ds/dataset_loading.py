@@ -14,7 +14,7 @@ def get_file_nrs_of_bird(bird: str, ds_base_path: str):
     return [f.split('.')[0] for f in os.listdir(os.path.join(ds_base_path, bird))[::2]]
 
 
-def load_annotations_for_bird(bird: str, ds_base_path: str):
+def load_annotations_for_bird2(bird: str, ds_base_path: str):
     file_nrs = get_file_nrs_of_bird(bird, ds_base_path)
     bird_data = np.zeros(shape=(0, 100, 548))
     bird_labels = np.zeros(shape=(0, 100))
@@ -25,6 +25,17 @@ def load_annotations_for_bird(bird: str, ds_base_path: str):
         bird_data = np.append(bird_data, data, axis=0)
         bird_labels = np.append(bird_labels, labels, axis=0)
     return bird_data, bird_labels
+    
+def load_annotations_for_bird(bird: str, ds_base_path: str):
+    file_nrs = get_file_nrs_of_bird(bird, ds_base_path)
+    data_arrays = []
+    label_arrays = []
+    for file_nr in file_nrs:
+        data, labels = load_annotations_for_file(bird, file_nr, ds_base_path)
+        data_arrays.append(data)
+        label_arrays.append(labels[:, 0])
+    
+    return np.array(data_arrays), np.array(label_arrays)
 
 def load_all_data(ds_base_path: str):
     data = np.zeros(shape=(0, 100, 548))
