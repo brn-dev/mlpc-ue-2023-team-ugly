@@ -1,11 +1,10 @@
+import numbers
+from collections import Counter
 from dataclasses import dataclass
 from typing import Optional, Any
 
 import numpy as np
 import sklearn
-
-from lib.torch_device import get_torch_device
-
 
 @dataclass
 class Metrics(dict):
@@ -22,10 +21,12 @@ class Metrics(dict):
         for key, value in metrics.items():
             if value is not None:
                 value_str: str
-                if value % 1.0 == 0:
-                    value_str = f'{int(value):5d}'
-                else:
+                if isinstance(value, int):
+                    value_str = f'{value:5d}'
+                elif isinstance(value, float):
                     value_str = f'{value:.6f}'
+                else:
+                    value_str = str(value)
                 metrics_stringified.append(f'{key} = {value_str}')
 
         return ', '.join(metrics_stringified)
@@ -72,6 +73,16 @@ class MetricsCollector:
             acc=acc,
             bacc=bacc
         )
+
+    def count_labels(self) -> tuple[dict[int, int], dict[int, int]]:
+        target_label_counts = self.__count_elements(self.target_labels)
+        pred_label_counts = self.__count_elements(self.pred_labels)
+        return target_label_counts, pred_label_counts
+
+    def __count_elements(self, arr: np.ndarray) -> dict[int, int]:
+        counter = Counter()
+        counter.update(arr)
+        return counter
 
 
 def calculate_average_metrics_for_final_epoch_of_folds(cv_folds_metrics: CVFoldsMetrics) -> TrainAndEvaluationMetrics:

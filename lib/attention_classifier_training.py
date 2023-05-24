@@ -1,5 +1,6 @@
+import copy
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 import numpy as np
 import torch
@@ -23,18 +24,19 @@ def train_attention_classifier_with_cv(
         training_hyper_parameters: TrainingHyperParameters,
         dataset: NumpyDataset,
         device: torch.device,
-        cv_folds_permute_seed: Optional[int]
+        cv_folds_permute_seed: Optional[int],
+        save_models: Literal[True, False, None, 'both', 'latest', 'best'] = None,
 ) -> tuple[
-    list[tuple[AttentionClassifier, StandardScaler]],
+    list[tuple[AttentionClassifier, AttentionClassifier, StandardScaler]],
     CVFoldsMetrics
 ]:
     timestamp = get_current_timestamp()
-    models_with_scalers: list[tuple[AttentionClassifier, StandardScaler]] = []
+    models_with_scalers: list[tuple[AttentionClassifier, AttentionClassifier, StandardScaler]] = []
     cv_folds_metrics: CVFoldsMetrics = []
 
     def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset, normalization_scaler: StandardScaler):
         print(f'Training fold {fold_nr}')
-        model, training_run_metrics = train_attention_classifier(
+        latest_model, training_run_metrics, best_model, best_metrics = train_attention_classifier(
             hyper_parameters,
             training_hyper_parameters,
             train_ds,
@@ -45,19 +47,42 @@ def train_attention_classifier_with_cv(
         print(f'Evaluating fold {fold_nr}')
         eval_data_loader = create_data_loader(eval_ds.data, eval_ds.labels, training_hyper_parameters.batch_size)
         evaluate_attention_classifier(
-            model,
+            latest_model,
             eval_data_loader,
             device,
             show_confmat=True,
-            confmat_title=f'Validation Fold {fold_nr} Performance'
+            confmat_title=f'Validation Performance Fold {fold_nr} - Latest Model'
+        )
+        evaluate_attention_classifier(
+            best_model,
+            eval_data_loader,
+            device,
+            show_confmat=True,
+            confmat_title=f'Validation Performance Fold {fold_nr} - Best Model'
         )
 
-        save_model_with_scaler(
-            model,
-            normalization_scaler,
-            f'attention_classifier cv{timestamp} fold-{fold_nr}'
-        )
-        models_with_scalers.append((model, normalization_scaler))
+        if save_models is True or save_models == 'both' or save_models == 'latest':
+            save_model_with_scaler(
+                latest_model,
+                normalization_scaler,
+                f'attention_classifier '
+                f'cv{timestamp} '
+                f'fold-{fold_nr}-latest '
+                f'train-bacc={training_run_metrics[-1][0].bacc:.4f} '
+                f'eval-bacc={training_run_metrics[-1][1].bacc:.4f}'
+            )
+        if save_models is True or save_models == 'both' or save_models == 'best':
+            save_model_with_scaler(
+                best_model,
+                normalization_scaler,
+                f'attention_classifier '
+                f'cv{timestamp} '
+                f'fold-{fold_nr}-best '
+                f'train-bacc={best_metrics[0].bacc:.4f} '
+                f'eval-bacc={best_metrics[1].bacc:.4f}'
+            )
+
+        models_with_scalers.append((latest_model, best_model, normalization_scaler))
         cv_folds_metrics.append(training_run_metrics)
 
     train_with_cv(dataset, train_func, cv_folds_permute_seed=cv_folds_permute_seed)
@@ -70,7 +95,7 @@ def train_attention_classifier(
         train_ds: NumpyDataset,
         eval_ds: Optional[NumpyDataset],
         device: torch.device
-) -> tuple[AttentionClassifier, TrainingRunMetrics]:
+) -> tuple[AttentionClassifier, TrainingRunMetrics, AttentionClassifier, TrainAndEvaluationMetrics]:
     attention_classifier = AttentionClassifier(hyper_parameters)
     attention_classifier.to(device)
     print(f'Training AttentionClassifier with {count_parameters(attention_classifier)} parameters')
@@ -85,10 +110,18 @@ def train_attention_classifier(
     else:
         eval_data_loader = None
 
+    train_label_counts = calculate_label_counts(train_ds.labels)
+    print(f'train label counts = {train_label_counts.tolist()}')
     loss_weight = calculate_loss_weight(train_ds.labels)
-    print(f'{loss_weight = }')
+    print(f'loss weights = {[round(weight, 2) for weight in loss_weight.tolist()]}')
 
-    training_run_metrics = _train_attention_classifier(
+    if eval_ds is not None:
+        eval_label_counts = calculate_label_counts(eval_ds.labels)
+        print(f'eval label counts = {eval_label_counts.tolist()}')
+        eval_loss_weight = calculate_loss_weight(eval_ds.labels)
+        print(f'eval loss weights = {[round(weight, 2) for weight in eval_loss_weight.tolist()]}')
+
+    training_run_metrics, best_model, best_metrics = _train_attention_classifier(
         attention_classifier,
         train_data_loader,
         eval_data_loader,
@@ -99,7 +132,7 @@ def train_attention_classifier(
         device
     )
 
-    return attention_classifier, training_run_metrics
+    return attention_classifier, training_run_metrics, best_model, best_metrics
 
 
 def _train_attention_classifier(
@@ -111,9 +144,16 @@ def _train_attention_classifier(
         num_epochs: int,
         lr_scheduler: Optional[torch.optim.lr_scheduler.MultiStepLR],
         device: torch.device
-) -> TrainingRunMetrics:
+) -> tuple[TrainingRunMetrics, AttentionClassifier, TrainAndEvaluationMetrics]:
+    if num_epochs < 1:
+        raise ValueError(f'{num_epochs = } has to be bigger than 0!')
+
     model.train()
     criterion = nn.CrossEntropyLoss(weight=loss_weight)
+
+    best_score: float = -np.inf
+    best_model: AttentionClassifier = copy.deepcopy(model)
+    best_metrics: TrainAndEvaluationMetrics
 
     training_run_metrics: TrainingRunMetrics = []
 
@@ -130,15 +170,22 @@ def _train_attention_classifier(
         if lr_scheduler is not None:
             lr_scheduler.step()
 
+        score = train_metrics.bacc
         print(f'Training Epoch {epoch:>3}/{num_epochs:<3}: lr = {get_lr(optimizer)}, {train_metrics}')
         if validation_metrics is not None:
+            score = validation_metrics.bacc
             print(f'Evaluation Epoch {epoch:>3}/{num_epochs:<3}: {validation_metrics}')
+
+        if score >= best_score:
+            best_score = score
+            best_model = copy.deepcopy(model)
+            best_metrics = (train_metrics, validation_metrics)
 
         training_run_metrics.append((train_metrics, validation_metrics))
 
 
     print('Training finished')
-    return training_run_metrics
+    return training_run_metrics, best_model, best_metrics
 
 
 def train_epoch(
@@ -148,7 +195,6 @@ def train_epoch(
         eval_data_loader: Optional[torch.utils.data.DataLoader],
         optimizer: torch.optim.Optimizer,
         device: torch.device
-
 ) -> TrainAndEvaluationMetrics:
     metrics_collector = MetricsCollector()
 
@@ -210,14 +256,16 @@ def evaluate_attention_classifier(
                 labels.cpu().detach().numpy()
             )
 
+    metrics = metrics_collector.generate_metrics()
+
     if show_confmat:
         display_confmat(
             metrics_collector.pred_labels,
             metrics_collector.target_labels,
-            confmat_title
+            confmat_title + f' - bacc={metrics.bacc:.4f}'
         )
 
-    return metrics_collector.generate_metrics()
+    return metrics
 
 
 def transpose_all(*tensors: torch.Tensor, dim0: int, dim1: int):
@@ -233,11 +281,22 @@ def reshape_for_loss(
     return pred, target_expected
 
 
+def calculate_label_counts(labels: np.ndarray) -> torch.Tensor:
+    return torch.bincount(torch.flatten(torch.Tensor(labels).long()))
+
+
 def calculate_loss_weight(labels: np.ndarray) -> torch.Tensor:
-    counts = torch.bincount(torch.flatten(torch.Tensor(labels).long()))
+    counts = calculate_label_counts(labels)
     counts_max = counts.max()
-    return (counts_max / counts).to(get_torch_device())
+    weights = (counts_max / counts).to(get_torch_device())
+    return weights
 
 
 def get_current_timestamp() -> str:
     return datetime.now().strftime('%Y-%m-%d_%H.%M')
+
+
+def get_score(metrics: Metrics) -> float:
+    return metrics.bacc
+
+

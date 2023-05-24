@@ -39,41 +39,31 @@ def split(
     return data_train, labels_train, data_test, labels_test
 
 
+# TODO: should be in training which should be called cv training
 def create_folds(
         data: np.ndarray,
         labels: np.ndarray,
         n_folds: int,
         cv_folds_permute_seed: Optional[int],
 ) -> tuple[np.ndarray, np.ndarray]:
-    n_files = data.shape[0]
-    files_per_fold = n_files // n_folds
 
-    files_per_bird = n_files // N_BIRDS
-    files_per_bird_per_fold = files_per_bird // n_folds
+    # -> (Birds, Folds, N (Samples per fold per bird), Sequence length, Dimensions)
+    data_folds = data.copy().reshape((N_BIRDS, n_folds, -1, data.shape[-2], data.shape[-1]))
+    labels_folds = labels.copy().reshape((N_BIRDS, n_folds, -1, labels.shape[-1]))
 
-    data_folds = np.ndarray((n_folds, files_per_fold, data.shape[1], data.shape[2]))
-    labels_folds = np.ndarray((n_folds, files_per_fold, labels.shape[1]))
-
-    birds_folds_permutations = np.repeat(np.arange(N_BIRDS)[np.newaxis, :], N_BIRDS, axis=0)
     if cv_folds_permute_seed is not None:
         rng = np.random.default_rng(seed=cv_folds_permute_seed)
         for bird_nr in range(N_BIRDS):
-            birds_folds_permutations[bird_nr] = rng.permutation(N_BIRDS)
+            bird_permutation = rng.permutation(n_folds)
+            data_folds[bird_nr, :] = data_folds[bird_nr, bird_permutation]
+            labels_folds[bird_nr, :] = labels_folds[bird_nr, bird_permutation]
 
-    for fold in range(n_folds):
-        for bird in range(N_BIRDS):
-            data_folds[fold, files_per_bird_per_fold * bird:files_per_bird_per_fold * (bird + 1)] = \
-                data[
-                    files_per_bird * bird + files_per_bird_per_fold * fold
-                    :
-                    files_per_bird * bird + files_per_bird_per_fold * (fold + 1)
-                ]
+    # -> (F, B, N, S, D)
+    data_folds = np.swapaxes(data_folds, 0, 1)
+    labels_folds = np.swapaxes(labels_folds, 0, 1)
 
-            labels_folds[fold, files_per_bird_per_fold * bird:files_per_bird_per_fold * (bird + 1)] = \
-                labels[
-                    files_per_bird * bird + files_per_bird_per_fold * fold
-                    :
-                    files_per_bird * bird + files_per_bird_per_fold * (fold + 1)
-                ]
+    # -> (F, B * N, S, D)
+    data_folds = data_folds.reshape((n_folds, -1, data.shape[-2], data.shape[-1]))
+    labels_folds = labels_folds.reshape((n_folds, -1, labels.shape[-1]))
 
     return data_folds, labels_folds
