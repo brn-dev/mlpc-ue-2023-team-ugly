@@ -11,6 +11,8 @@ from lib.model.positional_encoding import PositionalEncoding
 
 @dataclass
 class AttentionClassifierHyperParameters(HyperParameters):
+    attention_window_size: int
+
     in_features: int
     out_features: int
 
@@ -31,8 +33,10 @@ class AttentionClassifier(nn.Module):
         super().__init__()
         # TODO: dropout
 
+        self.attention_window_size = hyper_parameters.attention_window_size
         self.self_attention = hyper_parameters.self_attention
         self.stack_size = hyper_parameters.stack_size
+        self.out_features = hyper_parameters.out_features
 
         self.in_fnn = FNN(FNNHyperParameters(
             in_features=hyper_parameters.in_features,
@@ -63,8 +67,15 @@ class AttentionClassifier(nn.Module):
             dropout=hyper_parameters.linear_dropout
         ))
 
-    # x: (N, B, D)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        :param x: shape (N sequences, Sequence length, Dimensions)
+        :return:
+        """
+        n_sequences, sequence_length, dimensions = x.shape
+
+        x = torch.reshape(x, (-1, self.attention_window_size, dimensions))
+
         embedded = self.in_fnn.forward(x)
 
         embedded_with_pos = self.positional_encoder.forward(embedded)
@@ -89,5 +100,7 @@ class AttentionClassifier(nn.Module):
         # attention_out = self.norm(embedded_with_pos + attention_out)
 
         out = self.out_fnn.forward(attention_out)
+
+        out = torch.reshape(out, (n_sequences, sequence_length, self.out_features))
 
         return out

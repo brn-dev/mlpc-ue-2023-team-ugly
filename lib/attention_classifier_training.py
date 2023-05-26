@@ -15,16 +15,17 @@ from lib.metrics import CVFoldsMetrics, TrainingRunMetrics, MetricsCollector, Tr
 from lib.model.attention_classifier import AttentionClassifier, AttentionClassifierHyperParameters
 from lib.model.model_persistence import save_model_with_scaler
 from lib.torch_device import get_torch_device
-from lib.training import train_with_cv, get_lr, create_lr_scheduler, count_parameters
+from lib.training import get_lr, create_lr_scheduler, count_parameters
 from lib.training_hyper_parameters import TrainingHyperParameters
+from lib.cross_validation_training import train_with_cv
 
 
 def train_attention_classifier_with_cv(
         hyper_parameters: AttentionClassifierHyperParameters,
         training_hyper_parameters: TrainingHyperParameters,
         dataset: NumpyDataset,
+        n_folds: int,
         device: torch.device,
-        cv_folds_permute_seed: Optional[int],
         save_models: Literal[True, False, None, 'both', 'latest', 'best'] = None,
 ) -> tuple[
     list[tuple[AttentionClassifier, AttentionClassifier, StandardScaler]],
@@ -45,7 +46,12 @@ def train_attention_classifier_with_cv(
         )
 
         print(f'Evaluating fold {fold_nr}')
-        eval_data_loader = create_data_loader(eval_ds.data, eval_ds.labels, training_hyper_parameters.batch_size)
+        eval_data_loader = create_data_loader(
+            eval_ds.data,
+            eval_ds.labels,
+            training_hyper_parameters.batch_size,
+            shuffle=False
+        )
         evaluate_attention_classifier(
             latest_model,
             eval_data_loader,
@@ -85,7 +91,7 @@ def train_attention_classifier_with_cv(
         models_with_scalers.append((latest_model, best_model, normalization_scaler))
         cv_folds_metrics.append(training_run_metrics)
 
-    train_with_cv(dataset, train_func, cv_folds_permute_seed=cv_folds_permute_seed)
+    train_with_cv(dataset, train_func, n_folds)
     return models_with_scalers, cv_folds_metrics
 
 
@@ -103,10 +109,20 @@ def train_attention_classifier(
     optimizer = training_hyper_parameters.optimizer_provider(attention_classifier, training_hyper_parameters.lr)
     lr_scheduler = create_lr_scheduler(optimizer, training_hyper_parameters)
 
-    train_data_loader = create_data_loader(train_ds.data, train_ds.labels, training_hyper_parameters.batch_size)
+    train_data_loader = create_data_loader(
+        train_ds.data,
+        train_ds.labels,
+        training_hyper_parameters.batch_size,
+        shuffle=True
+    )
 
     if eval_ds is not None:
-        eval_data_loader = create_data_loader(eval_ds.data, eval_ds.labels, training_hyper_parameters.batch_size)
+        eval_data_loader = create_data_loader(
+            eval_ds.data,
+            eval_ds.labels,
+            training_hyper_parameters.batch_size,
+            shuffle=False
+        )
     else:
         eval_data_loader = None
 

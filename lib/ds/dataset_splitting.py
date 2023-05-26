@@ -39,7 +39,7 @@ def split(
     return data_train, labels_train, data_test, labels_test
 
 
-# TODO: should be in training which should be called cv training
+# TODO: Deprecated
 def create_folds(
         data: np.ndarray,
         labels: np.ndarray,
