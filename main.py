@@ -57,6 +57,9 @@ def main():
     plt.plot(range(1, len(all_validation_b_accuracies) + 1), all_validation_b_accuracies, label='Balanced validation '
                                                                                                 'accuracy')
     plt.xticks(np.arange(1, 21))
+    plt.title('Accuracies per K')
+    plt.xlabel('K')
+    plt.ylabel('Accuracy')
     plt.legend()
     plt.show()
 
