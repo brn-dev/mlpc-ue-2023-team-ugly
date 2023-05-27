@@ -1,0 +1,44 @@
+## cv eval bacc = 0.8737079650688006 ##
+
+hyper_parameters = AttentionClassifierHyperParameters(
+    attention_window_size=250,
+
+    in_features=data_raw.shape[-1],
+    out_features=NUM_CLASSES,
+
+    self_attention=True,
+    d_model=60,
+    num_heads=12,
+    stack_size=1,
+    attention_dropout=0.2,
+
+    in_linear_hidden_out_features=[48, 32],
+    out_linear_hidden_out_features=[16],
+    linear_activation_provider=lambda: nn.LeakyReLU(),
+    linear_dropout=0.2,
+)
+
+def create_training_hyper_parameters(epoch_multiplier: float, lr_multiplier: float):
+    return TrainingHyperParameters(
+        batch_size=32,
+
+        optimizer_provider=lambda model, lr: optim.Adamax(
+            model.parameters(),
+            lr=lr,
+            betas=(0.9, 0.98),
+            eps=1e-9
+        ),
+
+        num_epochs=int(100 * epoch_multiplier),
+
+        lr=1e-2 * lr_multiplier,
+        lr_scheduler_milestones=[int(m * epoch_multiplier) for m in [10, 20, 40, 60, 80]],
+        lr_scheduler_gamma=0.5,
+        lr_scheduler_provider=lambda optimizer, milestones, gamma: lr_scheduler.MultiStepLR(
+            optimizer,
+            milestones=milestones,
+            gamma=gamma
+        )
+    )
+
+## ##

@@ -35,23 +35,27 @@ def combine_birds(
     with tqdm(total=N_BIRDS * fragments_per_bird, desc='Creating random sequence') as progress_bar:
         while not all(bird_fragment_idx == fragments_per_bird for bird_fragment_idx in bird_fragment_indices.values()):
             bird_nr = rng.choice([bnr for bnr, bfi in bird_fragment_indices.items() if bfi < fragments_per_bird])
-            bird_fragment_idx = bird_fragment_indices[bird_nr]
-            fragments_left = fragments_per_bird - bird_fragment_idx
+            bird_subsequence_start_idx = bird_fragment_indices[bird_nr]
+            fragments_left = fragments_per_bird - bird_subsequence_start_idx
 
-            subsequence_length = rng.integers(30, 101)
+            # subsequence_length = rng.integers(30, 101)
+            subsequence_length = rng.integers(30, rng.integers(31, 101))
 
             if sequence_length > fragments_left:
-                # TODO: maybe can do this better
                 subsequence_length = fragments_left
+            else:
+                while (sequence_length < fragments_left
+                       and labels[bird_nr, bird_subsequence_start_idx + subsequence_length] != 0):
+                    subsequence_length += 1
 
             data_random_sequence = np.append(
                 data_random_sequence,
-                data[bird_nr, bird_fragment_idx:bird_fragment_idx + subsequence_length],
+                data[bird_nr, bird_subsequence_start_idx:bird_subsequence_start_idx + subsequence_length],
                 axis=0
             )
             labels_random_sequence = np.append(
                 labels_random_sequence,
-                labels[bird_nr, bird_fragment_idx:bird_fragment_idx + subsequence_length],
+                labels[bird_nr, bird_subsequence_start_idx:bird_subsequence_start_idx + subsequence_length],
                 axis=0
             )
             bird_fragment_indices[bird_nr] += subsequence_length

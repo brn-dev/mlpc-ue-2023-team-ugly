@@ -128,13 +128,13 @@ def train_attention_classifier(
 
     train_label_counts = calculate_label_counts(train_ds.labels)
     print(f'train label counts = {train_label_counts.tolist()}')
-    loss_weight = calculate_loss_weight(train_ds.labels)
+    loss_weight = calculate_loss_weight(train_ds.labels, training_hyper_parameters.loss_weight_factors)
     print(f'loss weights = {[round(weight, 2) for weight in loss_weight.tolist()]}')
 
     if eval_ds is not None:
         eval_label_counts = calculate_label_counts(eval_ds.labels)
         print(f'eval label counts = {eval_label_counts.tolist()}')
-        eval_loss_weight = calculate_loss_weight(eval_ds.labels)
+        eval_loss_weight = calculate_loss_weight(eval_ds.labels, training_hyper_parameters.loss_weight_factors)
         print(f'eval loss weights = {[round(weight, 2) for weight in eval_loss_weight.tolist()]}')
 
     training_run_metrics, best_model, best_metrics = _train_attention_classifier(
@@ -187,7 +187,7 @@ def _train_attention_classifier(
             lr_scheduler.step()
 
         score = train_metrics.bacc
-        print(f'Training Epoch {epoch:>3}/{num_epochs:<3}: lr = {get_lr(optimizer)}, {train_metrics}')
+        print(f'Training Epoch {epoch:>3}/{num_epochs:<3}: lr = {get_lr(optimizer):.2E}, {train_metrics}')
         if validation_metrics is not None:
             score = validation_metrics.bacc
             print(f'Evaluation Epoch {epoch:>3}/{num_epochs:<3}: {validation_metrics}')
@@ -301,10 +301,12 @@ def calculate_label_counts(labels: np.ndarray) -> torch.Tensor:
     return torch.bincount(torch.flatten(torch.Tensor(labels).long()))
 
 
-def calculate_loss_weight(labels: np.ndarray) -> torch.Tensor:
+def calculate_loss_weight(labels: np.ndarray, loss_weight_factors: Optional[torch.Tensor]) -> torch.Tensor:
     counts = calculate_label_counts(labels)
     counts_max = counts.max()
     weights = (counts_max / counts).to(get_torch_device())
+    if loss_weight_factors is not None:
+        weights *= loss_weight_factors
     return weights
 
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Callable
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -13,6 +14,7 @@ OptimizerProvider = Callable[[nn.Module, float], torch.optim.Optimizer]
 class TrainingHyperParameters(HyperParameters):
     batch_size: int
 
+    loss_weight_factors: Optional[torch.Tensor]
     optimizer_provider: OptimizerProvider
 
     num_epochs: int
