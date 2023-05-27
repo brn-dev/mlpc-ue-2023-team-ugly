@@ -29,11 +29,13 @@ def train_attention_classifier_with_cv(
         save_models: Literal[True, False, None, 'both', 'latest', 'best'] = None,
 ) -> tuple[
     list[tuple[AttentionClassifier, AttentionClassifier, StandardScaler]],
-    CVFoldsMetrics
+    CVFoldsMetrics,
+    list[TrainAndEvaluationMetrics]
 ]:
     timestamp = get_current_timestamp()
     models_with_scalers: list[tuple[AttentionClassifier, AttentionClassifier, StandardScaler]] = []
     cv_folds_metrics: CVFoldsMetrics = []
+    best_models_metrics: list[TrainAndEvaluationMetrics] = []
 
     def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset, normalization_scaler: StandardScaler):
         print(f'Training fold {fold_nr}')
@@ -90,9 +92,11 @@ def train_attention_classifier_with_cv(
 
         models_with_scalers.append((latest_model, best_model, normalization_scaler))
         cv_folds_metrics.append(training_run_metrics)
+        best_models_metrics.append(best_metrics)
+
 
     train_with_cv(dataset, train_func, n_folds)
-    return models_with_scalers, cv_folds_metrics
+    return models_with_scalers, cv_folds_metrics, best_models_metrics
 
 
 def train_attention_classifier(
