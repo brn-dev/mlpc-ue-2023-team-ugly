@@ -5,15 +5,26 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import balanced_accuracy_score
+from sympy.physics.quantum.identitysearch import scipy
+
 from lib.training import train_with_cv
 from lib.data_preprocessing import normalize_data
 from lib.ds.dataset_balancing import BalancingDataset
 from lib.ds.dataset_loading import flatten
 from torch.utils.data import DataLoader, TensorDataset
 import dill as pkl
+import sklearn
 import torch
 
 dataset_path = os.path.join('np_data', 'np_data_90corr')
+
+gain_m = np.array([[0.05, -0.2, -0.2, -0.2, -0.2, -0.2, -0.2],
+                   [-0.25, 1, -0.3, -0.1, -0.1, -0.1, -0.1],
+                   [-0.02, -0.1, 1, -0.1, -0.1, -0.1, -0.1],
+                   [-0.25,  -0.1, -0.3, 1, -0.1, -0.1, -0.1],
+                   [-0.25, -0.1, -0.3, -0.1, 1, -0.1, -0.1],
+                   [-0.25, -0.1, -0.3, -0.1, -0.1, 1, -0.1],
+                   [-0.25, -0.1, -0.3, -0.1, -0.1, -0.1, 1]])
 
 
 def main():
@@ -159,11 +170,17 @@ def main():
                 num_correct += int((pred == target.view(-1)).sum().item())
                 num_samples += pred.shape[0]
 
+        np.save(os.path.join('fnn', 'predictions', 'predictions.npy'), predictions)
+        np.save(os.path.join('fnn', 'targets', 'targets.npy'), targets)
+
         targets = targets.flatten()
         predictions = predictions.flatten()
 
         if confusion_bool:
-            confusion_m = confusion_matrix(targets, predictions, normalize='true')
+            confusion_m = confusion_matrix(targets, predictions)
+            print((confusion_m * gain_m).sum())
+
+            # confusion_m = confusion_matrix(targets, predictions, normalize='true')
             _, ax = plt.subplots(1, figsize=(8, 8))
             confusion_display = ConfusionMatrixDisplay(confusion_m,
                                                        display_labels=['other', 'comcuc', 'cowpig1', 'eucdov',
@@ -180,42 +197,62 @@ def main():
         unique_labels, labels_count = np.unique(labels, return_counts=True)
         return max(labels_count) / len(labels)
 
+    def compute_revenue(preds, targets):
+        # first step: ignore all nonbird frames immediately before or after a call
+        # this will also ignore holes of 1 or 2 frames within a long call sequence
+        expanded = scipy.ndimage.maximum_filter1d(targets, 3, axis=0)
+        ignore = (expanded != targets) & (targets == 0)
+        targets = targets[~ignore]
+        preds = preds[~ignore]
+        # second step: compute confusion matrix
+        confusions = confusion_matrix(
+            targets, preds,
+            labels=np.arange(len(gain_m)))
+        # third step: compute revenue from confusions
+        return (gain_m * confusions).sum()
+
     all_data_train = np.load(os.path.join(dataset_path, 'data_train_folds_down.npy'))
     all_data_test = np.load(os.path.join(dataset_path, 'data_test_down.npy'))
     all_labels_train = np.load(os.path.join(dataset_path, 'labels_train_folds_down.npy'))
     all_labels_test = np.load(os.path.join(dataset_path, 'labels_test.npy'))
     all_data_train, all_data_test = normalize_data(all_data_train, all_data_test)
+    confusion_m = np.load(os.path.join('confusion_matrices', 'confusion_fnn5.npy'))
+    model = pkl.load(open(os.path.join('fnn', 'best_model.pkl')))
 
-    model_and_data = train_with_cv(all_data_train,
-                                   all_data_test,
-                                   all_labels_train,
-                                   all_labels_test,
-                                   train_func
-                                   )
+    test_network()
 
-    fnn5_train = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5_train.pkl'), 'rb'))
-    fnn1_train = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn1_train.pkl'), 'rb'))
-    fnn5_test = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5_test.pkl'), 'rb'))
-    fnn5old_test = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5old_test.pkl'), 'rb'))
 
-    fig, ax = plt.subplots(figsize=(10, 10))
 
-    rects = plt.bar([1, 2],
-                    [fnn1_train['accuracies']['train_b_accuracy'], fnn5_train['accuracies']['train_b_accuracy']],
-                    width=0.25, label='Train Balanced Accuracy ')
-    ax.bar_label(rects, padding=3)
+    # model_and_data = train_with_cv(all_data_train,
+    #                                all_data_test,
+    #                                all_labels_train,
+    #                                all_labels_test,
+    #                                train_func
+    #                                )
 
-    rects = ax.bar([1.25, 2.25],
-                   [fnn1_train['accuracies']['valid_b_accuracy'], fnn5_train['accuracies']['valid_b_accuracy']],
-                   width=0.25, label='Validation Balanced Accuracy ')
-    ax.bar_label(rects, padding=3)
-
-    ax.set_xticks([1.125, 2.125], ['Model with 5 hidden layer and bigger lr', 'Model with 1 hidden layer and smaller lr'])
-    ax.set_ylabel('Accuracy')
-    ax.set_title('Comparison between two models')
-    ax.legend(ncols=2)
-
-    plt.show()
+    # fnn5_train = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5_train.pkl'), 'rb'))
+    # fnn1_train = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn1_train.pkl'), 'rb'))
+    # fnn5_test = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5_test.pkl'), 'rb'))
+    # fnn5old_test = pkl.load(open(os.path.join('fnn', 'scores_newest_data', 'fnn5old_test.pkl'), 'rb'))
+    #
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    #
+    # rects = plt.bar([1, 2],
+    #                 [fnn1_train['accuracies']['train_b_accuracy'], fnn5_train['accuracies']['train_b_accuracy']],
+    #                 width=0.25, label='Train Balanced Accuracy ')
+    # ax.bar_label(rects, padding=3)
+    #
+    # rects = ax.bar([1.25, 2.25],
+    #                [fnn1_train['accuracies']['valid_b_accuracy'], fnn5_train['accuracies']['valid_b_accuracy']],
+    #                width=0.25, label='Validation Balanced Accuracy ')
+    # ax.bar_label(rects, padding=3)
+    #
+    # ax.set_xticks([1.125, 2.125], ['Model with 5 hidden layer and bigger lr', 'Model with 1 hidden layer and smaller lr'])
+    # ax.set_ylabel('Accuracy')
+    # ax.set_title('Comparison between two models')
+    # ax.legend(ncols=2)
+    #
+    # plt.show()
 
 
 if __name__ == '__main__':

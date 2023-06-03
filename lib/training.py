@@ -99,6 +99,7 @@ def train_with_cv(
     data_train_normalized, data_test_normalized = normalize_data(data_train, data_test)
 
     torch.manual_seed(69)
+    np.random.seed(69)
     best_model_idx = 0
     print(f'The best model is {model_names[best_model_idx]}!')
     best_model = models[best_model_idx](data_train_normalized.shape[-1], 7).to(device=target_device)
@@ -106,7 +107,7 @@ def train_with_cv(
     optim = torch.optim.Adamax(best_model.parameters(), lr=learning_rates[best_model_idx])
 
     clf, optim, performances = train_func(best_model, optim, data_train_normalized, labels_train, data_test_normalized,
-                                          labels_test, 400,
+                                          labels_test, 1000,
                                           target_device, confusion_bool=True)
 
     best_model = dict({'accuracies': {'valid_accuracy': performances['valid']['acc'],
@@ -116,7 +117,10 @@ def train_with_cv(
                        'model': model_names[best_model_idx],
                        'lr': get_lr(optim)})
 
-    # with open(os.path.join('fnn', 'scores_newest_data', f'{model_names[best_model_idx]}_test.pkl'), 'wb') as f:
-    #     pkl.dump(best_model, f)
+    with open(os.path.join('fnn', 'scores_newest_data', f'{model_names[best_model_idx]}_test.pkl'), 'wb') as f:
+        pkl.dump(best_model, f)
+
+    with open(os.path.join('fnn', 'best_model.pkl'), 'wb') as f:
+        pkl.dump(clf, f)
 
     return best_model
