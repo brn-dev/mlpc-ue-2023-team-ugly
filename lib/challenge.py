@@ -35,4 +35,11 @@ def predict_for_challenge(
         return result
 
 
+def save_results_to_csv(results: np.ndarray, path: str):
+    with open(path, mode='wt') as f:
+        for i in range(results.shape[0]):
+            f.write(f'test{i:02d},{",".join([str(x) for x in results[i]])}\n')
 
+
+def load_results_from_csv(path: str):
+    return np.genfromtxt(path, delimiter=',')[:, 1:]

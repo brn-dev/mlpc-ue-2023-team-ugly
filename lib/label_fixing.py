@@ -2,22 +2,28 @@ import numpy as np
 from scipy.stats import entropy
 from tqdm import tqdm
 
+def _count_labels(
+        labels: np.ndarray
+):
+    values, counts = np.unique(labels, return_counts=True)
+
+    if values[0] == 0:
+        values = values[1:]
+        counts = counts[1:]
+
+    return values, counts
 
 def _calc_entropy(
         labels: np.ndarray
 ) -> float:
-    values, counts = np.unique(labels, return_counts=True)
+    values, counts = _count_labels(labels)
     return entropy(counts)
 
 
 def _assign_majority_label(
         labels: np.ndarray
 ) -> np.ndarray:
-    values, counts = np.unique(labels, return_counts=True)
-
-    if values[0] == 0:
-        values = values[1:]
-        counts = counts[1:]
+    values, counts = _count_labels(labels)
 
     if len(values) == 0:
         return labels
@@ -45,13 +51,17 @@ def _calc_information_gain_for_splitting_point(
 
 def _find_splitting_point_with_highest_information_gain(
         window: np.ndarray,
-        splitting_buffer: int,
+        splitting_point_window_shrink: int,
+        split_at_0_only: bool
 ) -> tuple[int, float]:
     window_size = window.shape[0]
 
     best_split_index, best_split_information_gain = -1, -1.0
 
-    for i in range(splitting_buffer, window_size - splitting_buffer):
+    for i in range(splitting_point_window_shrink, window_size - splitting_point_window_shrink):
+        if split_at_0_only and window[i] != 0:
+            continue
+
         information_gain = _calc_information_gain_for_splitting_point(window, i)
 
         if information_gain > best_split_information_gain:
@@ -64,7 +74,8 @@ def fix_labels_information_gain(
         labels: np.ndarray,
         window_size: int,
         window_overlap: int,
-        splitting_buffer: int,
+        splitting_point_window_shrink: int,
+        split_at_0_only: bool,
         information_gain_threshold: float,
 ) -> np.ndarray:
     n_sequences, sequence_length = labels.shape
@@ -75,7 +86,11 @@ def fix_labels_information_gain(
         for window_start in range(0, sequence_length - window_size, window_size - window_overlap):
             window = labels[sequence_nr, window_start:window_start + window_size].copy()
             best_split_index, best_split_information_gain = \
-                _find_splitting_point_with_highest_information_gain(window, splitting_buffer)
+                _find_splitting_point_with_highest_information_gain(
+                    window,
+                    splitting_point_window_shrink,
+                    split_at_0_only
+                )
 
             if best_split_index == -1 or best_split_information_gain < information_gain_threshold:
                 continue
