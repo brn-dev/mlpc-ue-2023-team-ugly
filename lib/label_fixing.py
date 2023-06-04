@@ -82,6 +82,8 @@ def fix_labels_information_gain(
 
     fixed_labels = np.copy(labels).astype(int)
 
+    num_skipped_windows = 0
+
     for sequence_nr in tqdm(range(n_sequences), desc='Fixing label sequences'):
         for window_start in range(0, sequence_length - window_size, window_size - window_overlap):
             window = labels[sequence_nr, window_start:window_start + window_size].copy()
@@ -93,6 +95,7 @@ def fix_labels_information_gain(
                 )
 
             if best_split_index == -1 or best_split_information_gain < information_gain_threshold:
+                num_skipped_windows += 1
                 continue
 
             window_left, window_right = window[:best_split_index], window[best_split_index:]
@@ -101,5 +104,8 @@ def fix_labels_information_gain(
 
             window = np.concatenate((window_left, window_right))
             fixed_labels[sequence_nr, window_start:window_start + window_size] = window
+
+    print(f'Skipped {num_skipped_windows} out of '
+          f'{n_sequences * (sequence_length - window_size) // (window_size - window_overlap)} windows')
 
     return fixed_labels
