@@ -8,6 +8,7 @@ import sklearn
 
 @dataclass
 class Metrics(dict):
+    epoch: Optional[int]
     avg_loss: Optional[float]
     num_samples: Optional[int]
     num_correct: Optional[int]
@@ -46,6 +47,7 @@ TrainingRunMetrics = list[TrainAndEvaluationMetrics]
 CVFoldsMetrics = list[TrainingRunMetrics]
 
 
+# noinspection PyMethodMayBeStatic
 class MetricsCollector:
 
     def __init__(self):
@@ -58,7 +60,7 @@ class MetricsCollector:
         self.pred_labels = np.concatenate((self.pred_labels, pred_labels))
         self.target_labels = np.concatenate((self.target_labels, target_labels))
 
-    def generate_metrics(self) -> Metrics:
+    def generate_metrics(self, epoch: Optional[int] = None) -> Metrics:
         num_samples = len(self.target_labels)
         num_correct = int((self.pred_labels == self.target_labels).sum().item())
 
@@ -67,6 +69,7 @@ class MetricsCollector:
         bacc = sklearn.metrics.balanced_accuracy_score(self.target_labels, self.pred_labels)
 
         return Metrics(
+            epoch=epoch,
             avg_loss=avg_loss,
             num_samples=num_samples,
             num_correct=num_correct,
@@ -123,6 +126,7 @@ def calculate_average_metrics_per_epoch(cv_folds_metrics: CVFoldsMetrics) -> Tra
 
 def calculate_average_metrics(metrics_list: list[Metrics]):
     avg_metrics = Metrics(
+        epoch=0,
         avg_loss=0.0,
         num_samples=0,
         num_correct=0,
@@ -139,5 +143,3 @@ def calculate_average_metrics(metrics_list: list[Metrics]):
         avg_metrics[attribute_key] /= num_metrics
 
     return avg_metrics
-
-

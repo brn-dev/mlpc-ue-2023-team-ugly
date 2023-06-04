@@ -23,14 +23,16 @@ def predict_for_challenge(
     challenge_data = normalization_scaler.transform(challenge_data)
     challenge_data = challenge_data.reshape((n_sequences, sequence_length, dimensions))
 
-    challenge_data_tensor = torch.Tensor(challenge_data).to(device)
+    with torch.no_grad():
 
-    model = model.to(device)
-    model.eval()
+        challenge_data_tensor = torch.Tensor(challenge_data).to(device)
 
-    result = model(challenge_data_tensor)
+        model = model.to(device)
+        model.eval()
 
-    return result
+        result = model(challenge_data_tensor)
+
+        return result
 
 
 

@@ -59,14 +59,15 @@ def train_attention_classifier_with_cv(
             eval_data_loader,
             device,
             show_confmat=True,
-            confmat_title=f'Validation Performance Fold {fold_nr} - Latest Model'
+            confmat_title=f'Validation Performance Fold {fold_nr} - Latest Model',
         )
         evaluate_attention_classifier(
             best_model,
             eval_data_loader,
             device,
             show_confmat=True,
-            confmat_title=f'Validation Performance Fold {fold_nr} - Best Model'
+            confmat_title=f'Validation Performance Fold {fold_nr} - Best Model ({best_metrics[0].epoch})',
+
         )
 
         if save_models is True or save_models == 'both' or save_models == 'latest':
@@ -173,12 +174,13 @@ def _train_attention_classifier(
 
     best_score: float = -np.inf
     best_model: AttentionClassifier = copy.deepcopy(model)
-    best_metrics: TrainAndEvaluationMetrics
+    best_metrics: Optional[TrainAndEvaluationMetrics] = None
 
     training_run_metrics: TrainingRunMetrics = []
 
-    for epoch in range(1, num_epochs + 1):
+    for epoch_nr in range(1, num_epochs + 1):
         train_metrics, validation_metrics = train_epoch(
+            epoch_nr,
             model,
             criterion,
             train_data_loader,
@@ -191,10 +193,10 @@ def _train_attention_classifier(
             lr_scheduler.step()
 
         score = train_metrics.bacc
-        print(f'Training Epoch {epoch:>3}/{num_epochs:<3}: lr = {get_lr(optimizer):.2E}, {train_metrics}')
+        print(f'Training Epoch {epoch_nr:>3}/{num_epochs:<3}: lr = {get_lr(optimizer):.2E}, {train_metrics}')
         if validation_metrics is not None:
             score = validation_metrics.bacc
-            print(f'Evaluation Epoch {epoch:>3}/{num_epochs:<3}: {validation_metrics}')
+            print(f'Evaluation Epoch {epoch_nr:>3}/{num_epochs:<3}: {validation_metrics}')
 
         if score >= best_score:
             best_score = score
@@ -209,6 +211,7 @@ def _train_attention_classifier(
 
 
 def train_epoch(
+        epoch_nr: int,
         model: AttentionClassifier,
         criterion: nn.CrossEntropyLoss,
         train_data_loader: torch.utils.data.DataLoader,
@@ -239,11 +242,17 @@ def train_epoch(
             labels.cpu().detach().numpy()
         )
 
-    train_metrics = metrics_collector.generate_metrics()
+    train_metrics = metrics_collector.generate_metrics(epoch_nr)
 
     eval_metrics: Optional[Metrics] = None
     if eval_data_loader is not None:
-        eval_metrics = evaluate_attention_classifier(model, eval_data_loader, device, show_confmat=False)
+        eval_metrics = evaluate_attention_classifier(
+            model,
+            eval_data_loader,
+            device,
+            show_confmat=False
+        )
+        eval_metrics.epoch = epoch_nr
 
     return train_metrics, eval_metrics
 
@@ -253,7 +262,7 @@ def evaluate_attention_classifier(
         data_loader: torch.utils.data.DataLoader,
         device: torch.device,
         show_confmat: bool = True,
-        confmat_title: str = None
+        confmat_title: str = None,
 ) -> Metrics:
     model.eval()
     criterion = nn.CrossEntropyLoss()
@@ -279,10 +288,12 @@ def evaluate_attention_classifier(
     metrics = metrics_collector.generate_metrics()
 
     if show_confmat:
+        confmat_title += f' - bacc={metrics.bacc:.4f}'
+
         display_confmat(
             metrics_collector.pred_labels,
             metrics_collector.target_labels,
-            confmat_title + f' - bacc={metrics.bacc:.4f}'
+            confmat_title
         )
 
     return metrics
