@@ -27,6 +27,7 @@ def train_attention_classifier_with_cv(
         n_folds: int,
         device: torch.device,
         save_models: Literal[True, False, None, 'both', 'latest', 'best'] = None,
+        model_saving_name: str = 'attention_classifier'
 ) -> tuple[
     list[tuple[AttentionClassifier, AttentionClassifier, StandardScaler]],
     CVFoldsMetrics,
@@ -74,7 +75,7 @@ def train_attention_classifier_with_cv(
             save_model_with_scaler(
                 latest_model,
                 normalization_scaler,
-                f'attention_classifier '
+                f'{model_saving_name} '
                 f'cv{timestamp} '
                 f'fold-{fold_nr}-latest '
                 f'train-bacc={training_run_metrics[-1][0].bacc:.4f} '
@@ -84,7 +85,7 @@ def train_attention_classifier_with_cv(
             save_model_with_scaler(
                 best_model,
                 normalization_scaler,
-                f'attention_classifier '
+                f'{model_saving_name} '
                 f'cv{timestamp} '
                 f'fold-{fold_nr}-best '
                 f'train-bacc={best_metrics[0].bacc:.4f} '

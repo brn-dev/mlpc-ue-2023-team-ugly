@@ -1,3 +1,7 @@
+import glob
+import re
+from os import PathLike
+
 import torch
 import os.path
 import joblib
@@ -22,6 +26,28 @@ def load_model_with_scaler(file_name: str) -> tuple[nn.Module, StandardScaler]:
     normalization_scaler = load_scaler(file_name)
     return model, normalization_scaler
 
+
+def load_models_with_scalers_with_prefix(
+        folder_path: str,
+        prefix: str
+) -> list[tuple[nn.Module, StandardScaler, float]]:
+    """
+    :return: list of (Model, Normalization-Scaler, BACC) tuples
+    """
+    models: list[tuple[nn.Module, StandardScaler, float]] = []
+
+    model_paths = set([
+        os.path.splitext(filename)[0]
+        for filename in os.listdir(folder_path)
+        if filename.startswith(prefix)
+    ])
+
+    for model_path in model_paths:
+        model, scaler = load_model_with_scaler(model_path)
+        bacc = float(re.findall(r'eval-bacc=(\d+\.\d+)', model_path)[0])
+        models.append((model, scaler, bacc))
+
+    return models
 
 def save_model(model: torch.nn.Module, file_name: str) -> str:
     save_path = os.path.join(MODEL_FOLDER_PATH, append_ext(file_name, PT_EXT))

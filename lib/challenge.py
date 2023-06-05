@@ -9,7 +9,7 @@ def predict_for_challenge(
         model: nn.Module,
         normalization_scaler: StandardScaler,
         device: torch.device
-):
+) -> np.ndarray:
     """
     :param challenge_data: shape (N=16, S=3000, D=548)
     :param model:
@@ -32,7 +32,7 @@ def predict_for_challenge(
 
         result = model(challenge_data_tensor)
 
-        return result
+        return torch.argmax(result, dim=2).detach().cpu().numpy()
 
 
 def save_results_to_csv(results: np.ndarray, path: str):
