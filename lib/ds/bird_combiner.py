@@ -56,7 +56,7 @@ def combine_birds_labels_only(
         bird_permutation = rng.permutation(labels.shape[1])
         labels[bird_nr, :] = labels[bird_nr, bird_permutation]
 
-    tqdm_desc = f'Creating random label sequence from {num_duplicates} duplicates'
+    tqdm_desc = f'Creating random label sequence ({num_duplicates = })'
     with tqdm(total=N_BIRDS * fragments_per_bird, desc=tqdm_desc) as progress_bar:
         while not all(bird_fragment_idx == fragments_per_bird for bird_fragment_idx in bird_fragment_indices.values()):
             bird_nr, bird_subsequence_start_idx, subsequence_length = \
@@ -87,14 +87,15 @@ def combine_birds(
     labels = labels.reshape((N_BIRDS, -1))
 
     if num_duplicates > 1:
-        data = np.reshape(
-            np.repeat(np.expand_dims(data, axis=1), num_duplicates, axis=1),
-            newshape=(N_BIRDS, -1, data.shape[-1])
-        )
-        labels = np.reshape(
-            np.repeat(np.expand_dims(labels, axis=1), num_duplicates, axis=1),
-            newshape=(N_BIRDS, -1)
-        )
+        raise NotImplementedError('This messes with our current cross validation folding')
+        # data = np.reshape(
+        #     np.repeat(np.expand_dims(data, axis=1), num_duplicates, axis=1),
+        #     newshape=(N_BIRDS, -1, data.shape[-1])
+        # )
+        # labels = np.reshape(
+        #     np.repeat(np.expand_dims(labels, axis=1), num_duplicates, axis=1),
+        #     newshape=(N_BIRDS, -1)
+        # )
 
     data_random_sequence: np.ndarray = np.ndarray(shape=(0, data.shape[-1]))
     labels_random_sequence: np.ndarray = np.ndarray(shape=(0,))

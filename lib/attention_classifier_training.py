@@ -15,7 +15,6 @@ from lib.metrics import CVFoldsMetrics, TrainingRunMetrics, MetricsCollector, Tr
 from lib.model.attention_classifier import AttentionClassifier, AttentionClassifierHyperParameters
 from lib.model.model_persistence import save_model_with_scaler
 from lib.torch_device import get_torch_device
-from lib.training import get_lr, create_lr_scheduler, count_parameters
 from lib.training_hyper_parameters import TrainingHyperParameters
 from lib.cross_validation_training import train_with_cv
 
@@ -110,7 +109,10 @@ def train_attention_classifier(
 ) -> tuple[AttentionClassifier, TrainingRunMetrics, AttentionClassifier, TrainAndEvaluationMetrics]:
     attention_classifier = AttentionClassifier(hyper_parameters)
     attention_classifier.to(device)
-    print(f'Training AttentionClassifier with {count_parameters(attention_classifier)} parameters')
+    print('#### Training AttentionClassifier ####')
+    print('#' * len('AttentionClassifier'))
+    print(attention_classifier)
+    print('#' * len('AttentionClassifier'))
 
     optimizer = training_hyper_parameters.optimizer_provider(attention_classifier, training_hyper_parameters.lr)
     lr_scheduler = create_lr_scheduler(optimizer, training_hyper_parameters)
@@ -332,5 +334,20 @@ def get_current_timestamp() -> str:
 
 def get_score(metrics: Metrics) -> float:
     return metrics.bacc
+
+
+def get_lr(optimizer: torch.optim.Optimizer) -> float:
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+
+
+def create_lr_scheduler(optimizer: torch.optim.Optimizer, training_hyper_parameters: TrainingHyperParameters):
+    if training_hyper_parameters.lr_scheduler_provider is None:
+        return None
+    return training_hyper_parameters.lr_scheduler_provider(
+        optimizer,
+        training_hyper_parameters.lr_scheduler_milestones,
+        training_hyper_parameters.lr_scheduler_gamma
+    )
 
 

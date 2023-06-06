@@ -2,6 +2,7 @@ from collections import Callable
 
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+from tqdm import tqdm
 
 from lib.data_preprocessing import normalize_data
 from lib.ds.numpy_dataset import NumpyDataset
@@ -45,7 +46,7 @@ def train_with_cv(
 
     n_sequences, sequence_length, dimensions = data_folds.shape[1:]
 
-    for fold_nr in range(n_folds):
+    for fold_nr in tqdm(range(n_folds), desc='CV Folds'):
         print(f'Executing CV for fold {fold_nr}')
 
         eval_idx = fold_nr

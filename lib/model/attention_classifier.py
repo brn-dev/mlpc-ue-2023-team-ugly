@@ -54,7 +54,9 @@ class AttentionClassifier(nn.Module):
         for _ in range(hyper_parameters.attention_stack_size - 1):
             attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters))
             attention_stack_modules.append(hyper_parameters.attention_stack_activation_provider())
-        attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters))
+
+        if hyper_parameters.attention_stack_size > 0:
+            attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters))
 
         self.attention_stack = nn.Sequential(*attention_stack_modules)
 
@@ -68,6 +70,12 @@ class AttentionClassifier(nn.Module):
             activation_provider=hyper_parameters.linear_activation_provider,
             dropout=hyper_parameters.linear_dropout
         ))
+
+    def __str__(self):
+        return (f'AttentionClassifier with {_count_parameters(self)} parameters, '
+                f'in_fnn: {_count_parameters(self.in_fnn)}, '
+                f'attention_stack: {_count_parameters(self.attention_stack)}, '
+                f'out_fnn: {_count_parameters(self.out_fnn)}')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -89,3 +97,6 @@ class AttentionClassifier(nn.Module):
         out = torch.reshape(out, (n_sequences, sequence_length, self.out_features))
 
         return out
+
+def _count_parameters(model: nn.Module) -> int:
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
