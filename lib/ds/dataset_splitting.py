@@ -37,33 +37,3 @@ def split(
         labels_train = np.append(labels_train, labels[train_indices], axis=0)
 
     return data_train, labels_train, data_test, labels_test
-
-
-# TODO: Deprecated
-def create_folds(
-        data: np.ndarray,
-        labels: np.ndarray,
-        n_folds: int,
-        cv_folds_permute_seed: Optional[int],
-) -> tuple[np.ndarray, np.ndarray]:
-
-    # -> (Birds, Folds, N (Samples per fold per bird), Sequence length, Dimensions)
-    data_folds = data.copy().reshape((N_BIRDS, n_folds, -1, data.shape[-2], data.shape[-1]))
-    labels_folds = labels.copy().reshape((N_BIRDS, n_folds, -1, labels.shape[-1]))
-
-    if cv_folds_permute_seed is not None:
-        rng = np.random.default_rng(seed=cv_folds_permute_seed)
-        for bird_nr in range(N_BIRDS):
-            bird_permutation = rng.permutation(n_folds)
-            data_folds[bird_nr, :] = data_folds[bird_nr, bird_permutation]
-            labels_folds[bird_nr, :] = labels_folds[bird_nr, bird_permutation]
-
-    # -> (F, B, N, S, D)
-    data_folds = np.swapaxes(data_folds, 0, 1)
-    labels_folds = np.swapaxes(labels_folds, 0, 1)
-
-    # -> (F, B * N, S, D)
-    data_folds = data_folds.reshape((n_folds, -1, data.shape[-2], data.shape[-1]))
-    labels_folds = labels_folds.reshape((n_folds, -1, labels.shape[-1]))
-
-    return data_folds, labels_folds
