@@ -44,7 +44,7 @@ def load_models_with_scalers_with_prefix(
 
     for model_path in model_paths:
         model, scaler = load_model_with_scaler(model_path)
-        bacc = float(re.findall(r'eval-bacc=(\d+\.\d+)', model_path)[0])
+        bacc = float(re.findall(r'score=(\d+\.\d+)', model_path)[0])
         models.append((model, scaler, bacc))
 
     return models
