@@ -114,7 +114,7 @@ def combine_birds(
         data[bird_nr, :] = data[bird_nr, bird_permutation]
         labels[bird_nr, :] = labels[bird_nr, bird_permutation]
 
-    tqdm_desc = f'Creating random sequence from {num_duplicates} duplicates'
+    tqdm_desc = f'Creating random sequence ({num_duplicates = })'
     with tqdm(total=N_BIRDS * fragments_per_bird, desc=tqdm_desc) as progress_bar:
         while not all(bird_fragment_idx == fragments_per_bird for bird_fragment_idx in bird_fragment_indices.values()):
             bird_nr, bird_subsequence_start_idx, subsequence_length = \

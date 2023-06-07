@@ -1,10 +1,26 @@
-import numbers
 from collections import Counter
 from dataclasses import dataclass
 from typing import Optional, Any
 
 import numpy as np
 import sklearn
+
+COST_MATRICES = dict({
+    2: np.array([
+        [1.0, -1.0],
+        [-1.0, 1.0],
+    ]),
+    7: np.array([
+        [0.05, -0.2, -0.2, -0.2, -0.2, -0.2, -0.2],
+        [-0.25, 1., -0.3, -0.1, -0.1, -0.1, -0.1],
+        [-0.02, -0.1, 1., -0.1, -0.1, -0.1, -0.1],
+        [-0.25, -0.1, -0.3, 1., -0.1, -0.1, -0.1],
+        [-0.25, -0.1, -0.3, -0.1, 1., -0.1, -0.1],
+        [-0.25, -0.1, -0.3, -0.1, -0.1, 1., -0.1],
+        [-0.25, -0.1, -0.3, -0.1, -0.1, -0.1, 1.]],
+    ),
+})
+
 
 @dataclass
 class Metrics(dict):
@@ -14,6 +30,7 @@ class Metrics(dict):
     num_correct: Optional[int]
     acc: Optional[float]
     bacc: Optional[float]
+    score: Optional[float]
 
     def __str__(self):
         metrics = vars(self)
@@ -42,13 +59,8 @@ class Metrics(dict):
         setattr(self, attribute_key, attribute_value)
 
 
-TrainAndEvaluationMetrics = tuple[Metrics, Optional[Metrics]]
-TrainingRunMetrics = list[TrainAndEvaluationMetrics]
-CVFoldsMetrics = list[TrainingRunMetrics]
-
-
 # noinspection PyMethodMayBeStatic
-class MetricsCollector:
+class LabelCollector:
 
     def __init__(self):
         self.total_loss = 0.0
@@ -67,6 +79,7 @@ class MetricsCollector:
         avg_loss = self.total_loss / num_samples
         acc = num_correct / num_samples
         bacc = sklearn.metrics.balanced_accuracy_score(self.target_labels, self.pred_labels)
+        score = self.__calc_score()
 
         return Metrics(
             epoch=epoch,
@@ -74,7 +87,8 @@ class MetricsCollector:
             num_samples=num_samples,
             num_correct=num_correct,
             acc=acc,
-            bacc=bacc
+            bacc=bacc,
+            score=score,
         )
 
     def count_labels(self) -> tuple[dict[int, int], dict[int, int]]:
@@ -86,6 +100,35 @@ class MetricsCollector:
         counter = Counter()
         counter.update(arr)
         return counter
+
+    def __calc_score(self) -> float:
+        confusion_matrix: np.ndarray = sklearn.metrics.confusion_matrix(self.target_labels, self.pred_labels)
+        optimal_matrix = np.diag(confusion_matrix.sum(axis=1))
+
+        cost_matrix = COST_MATRICES[confusion_matrix.shape[0]]
+
+        return (cost_matrix * confusion_matrix).sum() / (cost_matrix * optimal_matrix).sum()
+
+
+TrainAndEvaluationMetrics = tuple[Metrics, Metrics]
+TrainingRunMetrics = list[TrainAndEvaluationMetrics]
+CVFoldsMetrics = list[TrainingRunMetrics]
+
+
+@dataclass
+class MetricsCollection:
+    cv_metrics: CVFoldsMetrics
+    test_metrics: Optional[Metrics]
+
+    def __init__(self):
+        self.cv_metrics = []
+        self.test_metrics = None
+
+    def append_cv_fold(self, fold_metrics: TrainingRunMetrics):
+        self.cv_metrics.append(fold_metrics)
+
+    def get_score(self):
+        return self.test_metrics.score
 
 
 def calculate_average_metrics_for_final_epoch_of_folds(cv_folds_metrics: CVFoldsMetrics) -> TrainAndEvaluationMetrics:
@@ -132,6 +175,7 @@ def calculate_average_metrics(metrics_list: list[Metrics]):
         num_correct=0,
         acc=0.0,
         bacc=0.0,
+        score=0.0
     )
 
     for metrics in metrics_list:
