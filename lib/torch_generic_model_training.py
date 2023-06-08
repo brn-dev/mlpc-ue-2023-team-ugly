@@ -9,9 +9,11 @@ import torch.utils.data
 from sklearn.preprocessing import StandardScaler
 
 from lib.confusion_matrix import display_confmat
+from lib.data_preprocessing import normalize_data_using_preexisting_scaler
 from lib.ds.numpy_dataset import NumpyDataset
 from lib.ds.torch_dataset import create_data_loader
-from lib.metrics import CVFoldsMetrics, TrainingRunMetrics, LabelCollector, TrainAndEvaluationMetrics, Metrics
+from lib.metrics import CVFoldsMetrics, TrainingRunMetrics, LabelCollector, TrainAndEvaluationMetrics, Metrics, \
+    TrainingEvaluationAndTestMetrics
 from lib.model.model_persistence import save_model_with_scaler
 from lib.torch_device import get_torch_device
 from lib.training_hyper_parameters import TrainingHyperParameters
@@ -24,7 +26,8 @@ ModelProvider = Callable[[], M]
 def train_model_with_cv(
         model_provider: ModelProvider,
         training_hyper_parameters: TrainingHyperParameters,
-        dataset: NumpyDataset,
+        train_dataset: NumpyDataset,
+        test_dataset: Optional[NumpyDataset],
         n_folds: int,
         device: torch.device,
         save_models: Literal[True, False, None, 'both', 'latest', 'best'],
@@ -32,24 +35,25 @@ def train_model_with_cv(
 ) -> tuple[
     list[tuple[M, M, StandardScaler]],
     CVFoldsMetrics,
-    list[TrainAndEvaluationMetrics]
+    list[TrainingEvaluationAndTestMetrics]
 ]:
     timestamp = _get_current_timestamp()
     models_with_scalers: list[tuple[M, M, StandardScaler]] = []
     cv_folds_metrics: CVFoldsMetrics = []
-    best_models_metrics: list[TrainAndEvaluationMetrics] = []
+    best_models_metrics: list[TrainingEvaluationAndTestMetrics] = []
 
     def train_func(fold_nr: int, train_ds: NumpyDataset, eval_ds: NumpyDataset, normalization_scaler: StandardScaler):
         print(f'Training fold {fold_nr}')
         model = model_provider()
 
-        latest_model, training_run_metrics, best_model, best_metrics = train_model(
-            model,
-            training_hyper_parameters,
-            train_ds,
-            eval_ds,
-            device
-        )
+        latest_model, training_run_metrics, best_model, (best_model_train_metrics, best_model_eval_metrics) = \
+            train_model(
+                model,
+                training_hyper_parameters,
+                train_ds,
+                eval_ds,
+                device
+            )
 
         print(f'Evaluating fold {fold_nr}')
         eval_data_loader = create_data_loader(
@@ -70,35 +74,71 @@ def train_model_with_cv(
             eval_data_loader,
             device,
             show_confmat=True,
-            confmat_title=f'Validation Performance Fold {fold_nr} - Best Model ({best_metrics[0].epoch})',
+            confmat_title=f'Validation Performance Fold {fold_nr} - '
+                          f'Best Model ({best_model_train_metrics.epoch})',
 
         )
 
-        if save_models is True or save_models == 'both' or save_models == 'latest':
-            save_model_with_scaler(
-                latest_model,
-                normalization_scaler,
-                f'{model_saving_name} '
-                f'cv{timestamp} '
-                f'fold-{fold_nr}-latest '
-                f'score={training_run_metrics[-1][0].score:.4f} '
+        best_model_test_metrics: Optional[Metrics] = None
+        if test_dataset is not None:
+            print(f'\nTesting fold {fold_nr}')
+
+            test_data_loader = create_data_loader(
+                normalize_data_using_preexisting_scaler(test_dataset.data, normalization_scaler),
+                test_dataset.labels,
+                training_hyper_parameters.batch_size,
+                shuffle=False
             )
-        if save_models is True or save_models == 'both' or save_models == 'best':
-            save_model_with_scaler(
+            evaluate_model(
+                latest_model,
+                test_data_loader,
+                device,
+                show_confmat=True,
+                confmat_title=f'Test Performance Fold {fold_nr} - Latest Model',
+            )
+            best_model_test_metrics = evaluate_model(
                 best_model,
-                normalization_scaler,
+                test_data_loader,
+                device,
+                show_confmat=True,
+                confmat_title=f'Test Performance Fold {fold_nr} - Best Model ({best_model_train_metrics.epoch})',
+
+            )
+            print(f'Best Model Test Metrics: {best_model_test_metrics}')
+
+        if save_models is True or save_models == 'both' or save_models == 'latest':
+            raise NotImplementedError('TODO')
+            # save_model_with_scaler(
+            #     latest_model,
+            #     normalization_scaler,
+            #     f'{model_saving_name} '
+            #     f'cv{timestamp} '
+            #     f'fold-{fold_nr}-latest '
+            #     f'score={training_run_metrics[-1][0].score:.4f} '
+            # )
+        if save_models is True or save_models == 'both' or save_models == 'best':
+            model_saving_name_with_info = (
                 f'{model_saving_name} '
                 f'cv{timestamp} '
                 f'fold-{fold_nr}-best '
-                f'score={best_metrics[0].score:.4f} '
+                f'eval-score={best_model_eval_metrics.score:.4f} '
+            )
+
+            if best_model_test_metrics is not None:
+                model_saving_name_with_info += f'test-score={best_model_test_metrics.score:.4f}'
+
+            save_model_with_scaler(
+                best_model,
+                normalization_scaler,
+                model_saving_name_with_info
             )
 
         models_with_scalers.append((latest_model, best_model, normalization_scaler))
         cv_folds_metrics.append(training_run_metrics)
-        best_models_metrics.append(best_metrics)
+        best_models_metrics.append((best_model_train_metrics, best_model_eval_metrics, best_model_eval_metrics))
 
 
-    train_with_cv(dataset, train_func, n_folds)
+    train_with_cv(train_dataset, train_func, n_folds)
     return models_with_scalers, cv_folds_metrics, best_models_metrics
 
 
@@ -139,10 +179,12 @@ def train_model(
     eval_loss_weight = _calculate_loss_weight(eval_ds.labels, training_hyper_parameters.loss_weight_factors)
 
     print()
-    print(f'train label counts = {train_label_counts.tolist()}')
-    print(f'eval label counts  = {eval_label_counts.tolist()}\n')
-    print(f'loss weights                    = {[round(weight, 2) for weight in loss_weight.tolist()]}')
-    print(f'eval loss weights (theoretical) = {[round(weight, 2) for weight in eval_loss_weight.tolist()]}')
+    print(f'train label counts = [{", ".join([f"{c:>5d}" for c in train_label_counts.tolist()])}]')
+    print(f'train label counts = [{", ".join([f"{c:>5d}" for c in eval_label_counts.tolist()])}]\n')
+    print(f'loss weights                    = '
+          f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in loss_weight.tolist()])}]')
+    print(f'eval loss weights (theoretical) = '
+          f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in eval_loss_weight.tolist()])}]')
     print('\n')
 
     training_run_metrics, best_model, best_metrics = _train_model(
@@ -259,11 +301,12 @@ def evaluate_model(
         model: M,
         data_loader: torch.utils.data.DataLoader,
         device: torch.device,
+        loss_weight: Optional[torch.Tensor] = None,
         show_confmat: bool = True,
         confmat_title: str = None,
 ) -> Metrics:
     model.eval()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(weight=loss_weight)
 
     metrics_collector = LabelCollector()
 

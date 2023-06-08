@@ -45,4 +45,11 @@ def normalize_data(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.nd
 
     return data_train_scaled.reshape(data_train.shape), data_test_scaled.reshape(data_test.shape), scaler
 
+def normalize_data_using_preexisting_scaler(data: np.ndarray, scaler: StandardScaler) -> np.ndarray:
+    data_flat = data.reshape((-1, data.shape[-1]))
+
+    data_scaled: np.ndarray = scaler.transform(data_flat)
+
+    return data_scaled.reshape(data.shape)
+
 

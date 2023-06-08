@@ -111,6 +111,7 @@ class LabelCollector:
 
 
 TrainAndEvaluationMetrics = tuple[Metrics, Metrics]
+TrainingEvaluationAndTestMetrics = tuple[Metrics, Metrics, Optional[Metrics]]
 TrainingRunMetrics = list[TrainAndEvaluationMetrics]
 CVFoldsMetrics = list[TrainingRunMetrics]
 

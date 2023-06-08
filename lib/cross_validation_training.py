@@ -47,7 +47,7 @@ def train_with_cv(
     n_sequences, sequence_length, dimensions = data_folds.shape[1:]
 
     for fold_nr in tqdm(range(n_folds), desc='CV Folds'):
-        print(f'Executing CV for fold {fold_nr}')
+        print(f'\n\n\nExecuting CV for fold {fold_nr}')
 
         eval_idx = fold_nr
         train_indices = np.setdiff1d(range(n_folds), eval_idx)

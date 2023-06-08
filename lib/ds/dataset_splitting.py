@@ -3,17 +3,19 @@ from typing import Optional
 import numpy as np
 
 from lib.ds.dataset_loading import BIRD_NAMES
+from lib.ds.numpy_dataset import NumpyDataset
 
 N_BIRDS = len(BIRD_NAMES)
 
 
 def split(
-        data: np.ndarray,
-        labels: np.ndarray,
+        dataset: NumpyDataset,
         test_size_pct=0.2,
         seed=6942066
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[NumpyDataset, NumpyDataset]:
     np.random.seed(seed)
+
+    data, labels = dataset
 
     files_per_bird = data.shape[0] // N_BIRDS
     test_files_per_bird = int(files_per_bird * test_size_pct)
@@ -36,4 +38,4 @@ def split(
         data_train = np.append(data_train, data[train_indices], axis=0)
         labels_train = np.append(labels_train, labels[train_indices], axis=0)
 
-    return data_train, labels_train, data_test, labels_test
+    return NumpyDataset(data_train, labels_train), NumpyDataset(data_test, labels_test)
