@@ -12,10 +12,13 @@ def split(
         dataset: NumpyDataset,
         test_size_pct=0.2,
         seed=6942066
-) -> tuple[NumpyDataset, NumpyDataset]:
+) -> tuple[NumpyDataset, Optional[NumpyDataset]]:
     np.random.seed(seed)
 
     data, labels = dataset
+
+    if test_size_pct == 0:
+        return dataset.copy(), None
 
     files_per_bird = data.shape[0] // N_BIRDS
     test_files_per_bird = int(files_per_bird * test_size_pct)

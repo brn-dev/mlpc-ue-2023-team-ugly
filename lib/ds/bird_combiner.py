@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from tqdm import tqdm
 
@@ -76,13 +78,17 @@ def combine_birds_labels_only(
 
 
 def combine_birds(
-        numpy_ds: NumpyDataset,
+        numpy_ds: Optional[NumpyDataset],
         sequence_length: int,
         num_duplicates=1,
         random_seed=42
-) -> NumpyDataset:
+) -> Optional[NumpyDataset]:
+
+    if numpy_ds is None:
+        return None
 
     data, labels = numpy_ds.copy()
+
     data = data.reshape((N_BIRDS, -1, data.shape[-1]))
     labels = labels.reshape((N_BIRDS, -1))
 

@@ -1,6 +1,7 @@
 import glob
 import re
 from os import PathLike
+from typing import Optional
 
 import torch
 import os.path
@@ -30,11 +31,11 @@ def load_model_with_scaler(file_name: str) -> tuple[nn.Module, StandardScaler]:
 def load_models_with_scalers_with_prefix(
         folder_path: str,
         prefix: str
-) -> list[tuple[nn.Module, StandardScaler, float]]:
+) -> list[tuple[nn.Module, StandardScaler, tuple[Optional[float], Optional[float]]]]:
     """
-    :return: list of (Model, Normalization-Scaler, BACC) tuples
+    :return: list of (Model, Normalization-Scaler, (eval-score, test-score)) tuples
     """
-    models: list[tuple[nn.Module, StandardScaler, float]] = []
+    models: list[tuple[nn.Module, StandardScaler, tuple[Optional[float], Optional[float]]]] = []
 
     model_paths = set([
         os.path.splitext(filename)[0]
@@ -44,8 +45,15 @@ def load_models_with_scalers_with_prefix(
 
     for model_path in model_paths:
         model, scaler = load_model_with_scaler(model_path)
-        bacc = float(re.findall(r'score=(\d+\.\d+)', model_path)[0])
-        models.append((model, scaler, bacc))
+        eval_score = _extract_score(model_path, 'eval_score')
+        test_score = _extract_score(model_path, 'test_score')
+
+        if eval_score < 0:
+            print(f'{model_path}: eval_score < 0!')
+        if test_score < 0:
+            print(f'{model_path}: test_score < 0!')
+
+        models.append((model, scaler, (eval_score, test_score)))
 
     return models
 
@@ -75,3 +83,14 @@ def append_ext(file_name: str, ext: str) -> str:
     if file_name.endswith(ext):
         return file_name
     return file_name + ext
+
+
+def _extract_score(s: str, key: str) -> Optional[float]:
+    matches = re.findall(rf'{key}=(-?\d+\.\d+)', s)
+
+    if len(matches) > 1:
+        raise ValueError
+    if len(matches) == 0:
+        return None
+
+    return float(matches[0])

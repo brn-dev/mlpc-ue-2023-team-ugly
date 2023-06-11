@@ -27,8 +27,14 @@ def perform_weighted_voting(
                     species_classifier_voting_weights[species_model_nr]
 
             for bird_no_bird_model_nr in range(n_bird_no_bird_models):
-                if bird_no_bird_predictions[sequence_nr, fragment_nr, bird_no_bird_model_nr] == 0:
-                    votes[0] += bird_no_bird_classifier_voting_weights[bird_no_bird_model_nr]
+                model_prediction = \
+                    bird_no_bird_predictions[sequence_nr, fragment_nr, bird_no_bird_model_nr]
+                model_weight = bird_no_bird_classifier_voting_weights[bird_no_bird_model_nr]
+                if model_prediction == 0:
+                    votes[0] += model_weight
+                else:
+                    for i in range(1, len(votes)):
+                        votes[i] += model_weight
 
             voting_results[sequence_nr, fragment_nr] = np.argmax(votes)
 

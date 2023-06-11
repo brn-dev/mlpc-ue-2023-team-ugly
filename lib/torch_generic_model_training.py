@@ -121,11 +121,11 @@ def train_model_with_cv(
                 f'{model_saving_name} '
                 f'cv{timestamp} '
                 f'fold-{fold_nr}-best '
-                f'eval-score={best_model_eval_metrics.score:.4f} '
+                f'eval-score={best_model_eval_metrics.score:.4f}'
             )
 
             if best_model_test_metrics is not None:
-                model_saving_name_with_info += f'test-score={best_model_test_metrics.score:.4f}'
+                model_saving_name_with_info += f' test-score={best_model_test_metrics.score:.4f}'
 
             save_model_with_scaler(
                 best_model,
@@ -135,7 +135,7 @@ def train_model_with_cv(
 
         models_with_scalers.append((latest_model, best_model, normalization_scaler))
         cv_folds_metrics.append(training_run_metrics)
-        best_models_metrics.append((best_model_train_metrics, best_model_eval_metrics, best_model_eval_metrics))
+        best_models_metrics.append((best_model_train_metrics, best_model_eval_metrics, best_model_test_metrics))
 
 
     train_with_cv(train_dataset, train_func, n_folds)
@@ -180,7 +180,7 @@ def train_model(
 
     print()
     print(f'train label counts = [{", ".join([f"{c:>5d}" for c in train_label_counts.tolist()])}]')
-    print(f'train label counts = [{", ".join([f"{c:>5d}" for c in eval_label_counts.tolist()])}]\n')
+    print(f'eval label counts  = [{", ".join([f"{c:>5d}" for c in eval_label_counts.tolist()])}]\n')
     print(f'loss weights                    = '
           f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in loss_weight.tolist()])}]')
     print(f'eval loss weights (theoretical) = '

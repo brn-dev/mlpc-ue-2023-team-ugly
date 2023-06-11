@@ -72,7 +72,7 @@ class LabelCollector:
         self.pred_labels = np.concatenate((self.pred_labels, pred_labels))
         self.target_labels = np.concatenate((self.target_labels, target_labels))
 
-    def generate_metrics(self, epoch: Optional[int] = None) -> Metrics:
+    def generate_metrics(self, epoch: int = -1) -> Metrics:
         num_samples = len(self.target_labels)
         num_correct = int((self.pred_labels == self.target_labels).sum().item())
 
