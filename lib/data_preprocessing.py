@@ -1,6 +1,8 @@
 import numpy as np
+import pickle as pkl
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder
+from typing import List
 
 CORRELATION_THRESHOLD = 0.9
 
@@ -17,8 +19,10 @@ def find_correlated_columns_to_drop(data: np.ndarray) -> np.ndarray:
         if (corr_matrix_upper_tri[:, column_idx] > CORRELATION_THRESHOLD).any()
     ])
 
-def remove_correlated_columns(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    correlated_columns_to_drop = find_correlated_columns_to_drop(data_train)
+def remove_correlated_columns(data_train: np.ndarray, data_test: np.ndarray,
+                              correlated_columns_to_drop: List[int]=None) -> tuple[np.ndarray, np.ndarray]:
+    if correlated_columns_to_drop is None:
+        correlated_columns_to_drop = find_correlated_columns_to_drop(data_train)
 
     data_train = data_train[:, :, np.setdiff1d(range(data_train.shape[-1]), correlated_columns_to_drop)]
     data_test = data_test[:, :, np.setdiff1d(range(data_test.shape[-1]), correlated_columns_to_drop)]
