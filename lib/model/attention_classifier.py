@@ -30,8 +30,10 @@ class AttentionClassifierHyperParameters(MultiheadSelfAttentionHyperParameters):
 
 
 class AttentionClassifier(nn.Module):
-    def __init__(self, hyper_parameters: AttentionClassifierHyperParameters):
+    def __init__(self, hyper_parameters: AttentionClassifierHyperParameters, batch_first: bool):
         super().__init__()
+
+        self.batch_first = batch_first
 
         self.attention_window_size = hyper_parameters.attention_window_size
         self.stack_size = hyper_parameters.attention_stack_size
@@ -46,20 +48,22 @@ class AttentionClassifier(nn.Module):
 
         self.positional_encoder = PositionalEncoding(
             d_model=hyper_parameters.d_model,
-            max_len=1024
+            max_len=1024,
+            batch_first=False,
         )
 
         attention_stack_modules: list[nn.Module] = []
 
         for _ in range(hyper_parameters.attention_stack_size - 1):
-            attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters))
+            attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters, batch_first=False))
             attention_stack_modules.append(hyper_parameters.attention_stack_activation_provider())
 
         if hyper_parameters.attention_stack_size > 0:
-            attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters))
+            attention_stack_modules.append(MultiheadSelfAttention(hyper_parameters, batch_first=False))
 
         self.attention_stack = nn.Sequential(*attention_stack_modules)
 
+        # TODO: norm?
         # self.norm = nn.LayerNorm(
         #     hyper_parameters.d_model
         # )
@@ -78,13 +82,13 @@ class AttentionClassifier(nn.Module):
                 f'out_fnn: {_count_parameters(self.out_fnn)}')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        :param x: shape (N sequences, Sequence length, Dimensions)
-        :return:
-        """
-        n_sequences, sequence_length, dimensions = x.shape
+        # using batch second internally
+        if self.batch_first:
+            x = torch.swapaxes(x, 0, 1)
 
-        x = torch.reshape(x, (-1, self.attention_window_size, dimensions))
+        sequence_length, n_sequences, dimensions = x.shape
+
+        x = torch.reshape(x, (self.attention_window_size, -1, dimensions))
 
         embedded = self.in_fnn.forward(x)
 
@@ -94,7 +98,10 @@ class AttentionClassifier(nn.Module):
 
         out = self.out_fnn.forward(attention_out)
 
-        out = torch.reshape(out, (n_sequences, sequence_length, self.out_features))
+        out = torch.reshape(out, (sequence_length, n_sequences, self.out_features))
+
+        if self.batch_first:
+            out = torch.swapaxes(out, 0, 1)
 
         return out
 

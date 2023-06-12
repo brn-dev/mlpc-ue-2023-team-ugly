@@ -9,9 +9,10 @@ class PositionalEncoding(nn.Module):
     pos_encoding: torch.Tensor
 
 
-    def __init__(self, d_model: int, max_len: int):
+    def __init__(self, d_model: int, max_len: int, batch_first: bool):
         super().__init__()
-        # TODO: dropout
+
+        self.batch_first = batch_first
 
         pos_encoding = torch.zeros(max_len, d_model)
         positions_list = torch.arange(0, max_len, dtype=torch.float).view(-1, 1)
@@ -20,7 +21,21 @@ class PositionalEncoding(nn.Module):
         pos_encoding[:, 0::2] = torch.sin(positions_list * division_term)
         pos_encoding[:, 1::2] = torch.cos(positions_list * division_term)
 
+        pos_encoding = torch.unsqueeze(pos_encoding, 1)
+        print(pos_encoding.shape)
+
         self.register_buffer('pos_encoding', pos_encoding)
 
     def forward(self, token_embedding: torch.Tensor) -> torch.Tensor:
-        return token_embedding + self.pos_encoding[:token_embedding.shape[1]]
+        # using batch second internally
+        if self.batch_first:
+            token_embedding = torch.swapaxes(token_embedding, 0, 1)
+
+        sequence_length, n_sequences, dimensions = token_embedding.shape
+
+        result = token_embedding + self.pos_encoding[:sequence_length]
+
+        if self.batch_first:
+            result = torch.swapaxes(result, 0, 1)
+
+        return result

@@ -265,7 +265,6 @@ def train_epoch(
     metrics_collector = LabelCollector()
 
     for data, labels in train_data_loader:
-        data, labels = _transpose_all(data, labels, dim0=0, dim1=1)
         data, labels = data.float().to(device), labels.long().to(device)
 
         optimizer.zero_grad()
@@ -312,7 +311,6 @@ def evaluate_model(
 
     with torch.no_grad():
         for data, labels in data_loader:
-            data, labels = _transpose_all(data, labels, dim0=0, dim1=1)
             data, labels = data.float().to(device), labels.long().to(device)
 
             pred = model.forward(data)

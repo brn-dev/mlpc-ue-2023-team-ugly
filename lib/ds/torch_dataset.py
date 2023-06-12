@@ -6,7 +6,15 @@ SOS_TOKEN_VALUE = 7
 EOS_TOKEN_VALUE = 8
 
 
-def create_tensor_dataset(data: np.ndarray, labels: np.ndarray) -> TensorDataset:
+def create_tensor_dataset(
+        data: np.ndarray,
+        labels: np.ndarray,
+        input_batch_first: bool = True,  # TODO: no default
+        output_batch_first: bool = True,
+) -> TensorDataset:
+    if input_batch_first != output_batch_first:
+        data = data.swapaxes(0, 1)
+
     data_tensor = torch.Tensor(data)
     labels_tensor = torch.Tensor(labels)
 
@@ -17,8 +25,12 @@ def create_data_loader(
         data: np.ndarray,
         labels: np.ndarray,
         batch_size: int,
-        shuffle: bool
+        shuffle: bool,
+        batch_second=False,  # TODO: no default
 ) -> DataLoader:
+    if batch_second:
+        data = np.swapaxes(data.copy(), 0, 1)
+        labels = np.swapaxes(labels.copy(), 0, 1)
     return DataLoader(create_tensor_dataset(data, labels), batch_size, shuffle=shuffle)
 
 

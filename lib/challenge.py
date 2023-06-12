@@ -25,7 +25,7 @@ def predict_for_challenge(
 
     with torch.no_grad():
 
-        challenge_data_tensor = torch.Tensor(challenge_data).to(device)
+        challenge_data_tensor = torch.Tensor(challenge_data).to(device)  # TODO
 
         model = model.to(device)
         model.eval()

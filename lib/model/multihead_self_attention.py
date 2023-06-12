@@ -15,22 +15,24 @@ class MultiheadSelfAttentionHyperParameters(HyperParameters):
 
 class MultiheadSelfAttention(nn.Module):
 
-    def __init__(self, hyper_parameters: MultiheadSelfAttentionHyperParameters):
+    def __init__(self, hyper_parameters: MultiheadSelfAttentionHyperParameters, batch_first: bool):
         super().__init__()
         self.multihead_attention = nn.MultiheadAttention(
             embed_dim=hyper_parameters.d_model,
             num_heads=hyper_parameters.num_heads,
-            dropout=hyper_parameters.attention_dropout
+            dropout=hyper_parameters.attention_dropout,
+            batch_first=batch_first
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         :param x: shape (*, Sequence-length, Dimensions)
         """
-        x = self.multihead_attention(
+        x = self.multihead_attention.forward(
             query=x,
             key=x,
-            value=x
-        )[0]  # no idea why it returns a tuple with other stuff
+            value=x,
+            need_weights=False,
+        )[0]
 
         return x
