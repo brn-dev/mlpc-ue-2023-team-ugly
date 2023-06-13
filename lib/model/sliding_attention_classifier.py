@@ -30,30 +30,33 @@ class SlidingAttentionClassifier(AttentionClassifier):
                 f'attention_stack: {_count_parameters(self.attention_stack)}, '
                 f'out_fnn: {_count_parameters(self.out_fnn)}')
 
-    # def forward(self, x: torch.Tensor) -> torch.Tensor:
-    #     """
-    #     :param x: shape (N sequences, Sequence length, Dimensions)
-    #     :return:
-    #     """
-    #     n_sequences, sequence_length, dimensions = x.shape
-    #
-    #     print(f'{x.shape = }')
-    #     x = torch.reshape(x, (-1, self.attention_window_size, dimensions))
-    #
-    #     # x = self.unfold(x)
-    #
-    #     embedded = self.in_fnn.forward(x)
-    #
-    #     print(f'{embedded.shape = }')
-    #     embedded_with_pos = self.positional_encoder.forward(embedded)
-    #
-    #     attention_out = self.attention_stack.forward(embedded_with_pos)
-    #
-    #     out = self.out_fnn.forward(attention_out)
-    #
-    #     out = torch.reshape(out, (n_sequences, sequence_length, self.out_features))
-    #
-    #     return out
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.unfold(x)
+        print(f'{x.shape =  }')
+
+        # using batch second internally
+        if self.batch_first:
+            x = torch.swapaxes(x, 0, 1)
+
+        sequence_length, n_sequences, dimensions = x.shape
+
+        x = torch.reshape(x, (self.attention_window_size, -1, dimensions))
+
+        embedded = self.in_fnn.forward(x)
+
+        embedded_with_pos = self.positional_encoder.forward(embedded)
+
+        print(f'{embedded_with_pos.shape = }]')
+        attention_out = self.attention_stack.forward(embedded_with_pos)
+
+        out = self.out_fnn.forward(attention_out)
+
+        out = torch.reshape(out, (sequence_length, n_sequences, self.out_features))
+
+        if self.batch_first:
+            out = torch.swapaxes(out, 0, 1)
+
+        return out
 
 def _count_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
