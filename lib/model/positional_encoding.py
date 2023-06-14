@@ -22,7 +22,6 @@ class PositionalEncoding(nn.Module):
         pos_encoding[:, 1::2] = torch.cos(positions_list * division_term)
 
         pos_encoding = torch.unsqueeze(pos_encoding, 1)
-        print(pos_encoding.shape)
 
         self.register_buffer('pos_encoding', pos_encoding)
 

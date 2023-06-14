@@ -18,11 +18,8 @@ class SlidingAttentionClassifier(AttentionClassifier):
     def __init__(self, hyper_parameters: SlidingAttentionClassifierHyperParameters, batch_first: bool):
         super().__init__(hyper_parameters, batch_first=batch_first)
 
-        self.unfold = nn.Unfold(
-            kernel_size=hyper_parameters.attention_window_size,
-            stride=hyper_parameters.stride,
-            padding=hyper_parameters.attention_window_size // 2
-        )
+        self.attention_window_size = hyper_parameters.attention_window_size
+        self.stride = hyper_parameters.stride
 
     def __str__(self):
         return (f'SlidingAttentionClassifier with {_count_parameters(self)} parameters, '
@@ -31,27 +28,29 @@ class SlidingAttentionClassifier(AttentionClassifier):
                 f'out_fnn: {_count_parameters(self.out_fnn)}')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.unfold(x)
-        print(f'{x.shape =  }')
-
         # using batch second internally
         if self.batch_first:
             x = torch.swapaxes(x, 0, 1)
 
         sequence_length, n_sequences, dimensions = x.shape
 
-        x = torch.reshape(x, (self.attention_window_size, -1, dimensions))
+        folded = nn.functional.pad(x.permute(1, 2, 0), (self.stride, self.stride)) \
+            .unfold(2, self.attention_window_size, self.stride)
+        folded = folded.reshape(-1, dimensions, self.attention_window_size).permute(2, 0, 1)
 
-        embedded = self.in_fnn.forward(x)
+        embedded = self.in_fnn.forward(folded)
 
         embedded_with_pos = self.positional_encoder.forward(embedded)
-
-        print(f'{embedded_with_pos.shape = }]')
         attention_out = self.attention_stack.forward(embedded_with_pos)
 
         out = self.out_fnn.forward(attention_out)
 
-        out = torch.reshape(out, (sequence_length, n_sequences, self.out_features))
+        out = (
+            out[self.stride:-self.stride, :, :]
+                .permute(1, 0, 2)
+                .reshape(n_sequences, sequence_length, self.out_features)
+                .permute(1, 0, 2)
+        )
 
         if self.batch_first:
             out = torch.swapaxes(out, 0, 1)

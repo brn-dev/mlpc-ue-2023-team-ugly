@@ -173,10 +173,12 @@ def train_model(
     )
 
     train_label_counts = _calculate_label_counts(train_ds.labels)
-    loss_weight = _calculate_loss_weight(train_ds.labels, training_hyper_parameters.loss_weight_factors)
+    loss_weight = \
+        _calculate_loss_weight(train_ds.labels, training_hyper_parameters.loss_weight_modifiers.to(device))
 
     eval_label_counts = _calculate_label_counts(eval_ds.labels)
-    eval_loss_weight = _calculate_loss_weight(eval_ds.labels, training_hyper_parameters.loss_weight_factors)
+    eval_loss_weight = \
+        _calculate_loss_weight(eval_ds.labels, training_hyper_parameters.loss_weight_modifiers.to(device))
 
     print()
     print(f'train label counts = [{", ".join([f"{c:>5d}" for c in train_label_counts.tolist()])}]')
