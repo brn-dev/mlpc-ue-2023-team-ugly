@@ -63,11 +63,6 @@ class AttentionClassifier(nn.Module):
 
         self.attention_stack = nn.Sequential(*attention_stack_modules)
 
-        # TODO: norm?
-        # self.norm = nn.LayerNorm(
-        #     hyper_parameters.d_model
-        # )
-
         self.out_fnn = FNN(FNNHyperParameters(
             in_features=hyper_parameters.d_model,
             layers_out_features=hyper_parameters.out_linear_hidden_out_features + [hyper_parameters.out_features],
