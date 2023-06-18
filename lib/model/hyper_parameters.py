@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(init=True)
 class HyperParameters(dict):
+
     def __set_item(self, key, item):
         raise TypeError('HyperParameters are frozen, cannot set values')
 

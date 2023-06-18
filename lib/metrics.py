@@ -76,6 +76,17 @@ class LabelCollector:
         num_samples = len(self.target_labels)
         num_correct = int((self.pred_labels == self.target_labels).sum().item())
 
+        if num_samples == 0:
+            return Metrics(
+                    epoch=epoch,
+                    avg_loss=-1,
+                    num_samples=0,
+                    num_correct=0,
+                    acc=-1,
+                    bacc=-1,
+                    score=-1,
+                )
+
         avg_loss = self.total_loss / num_samples
         acc = num_correct / num_samples
         bacc = sklearn.metrics.balanced_accuracy_score(self.target_labels, self.pred_labels)

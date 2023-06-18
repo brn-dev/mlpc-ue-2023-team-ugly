@@ -80,6 +80,7 @@ def train_model_with_cv(
         )
 
         best_model_test_metrics: Optional[Metrics] = None
+        latest_model_test_metrics: Optional[Metrics] = None
         if test_dataset is not None:
             print(f'\nTesting fold {fold_nr}')
 
@@ -89,7 +90,7 @@ def train_model_with_cv(
                 training_hyper_parameters.batch_size,
                 shuffle=False
             )
-            evaluate_model(
+            latest_model_test_metrics = evaluate_model(
                 latest_model,
                 test_data_loader,
                 device,
@@ -107,15 +108,22 @@ def train_model_with_cv(
             print(f'Best Model Test Metrics: {best_model_test_metrics}')
 
         if save_models is True or save_models == 'both' or save_models == 'latest':
-            raise NotImplementedError('TODO')
-            # save_model_with_scaler(
-            #     latest_model,
-            #     normalization_scaler,
-            #     f'{model_saving_name} '
-            #     f'cv{timestamp} '
-            #     f'fold-{fold_nr}-latest '
-            #     f'score={training_run_metrics[-1][0].score:.4f} '
-            # )
+            model_saving_name_with_info = (
+                f'{model_saving_name} '
+                f'cv{timestamp} '
+                f'fold-{fold_nr}-latest '
+                f'eval-score={training_run_metrics[-1][1].score:.4f}'
+            )
+
+            if best_model_test_metrics is not None:
+                model_saving_name_with_info += f' test-score={latest_model_test_metrics.score:.4f}'
+
+            save_model_with_scaler(
+                latest_model,
+                normalization_scaler,
+                model_saving_name_with_info
+            )
+
         if save_models is True or save_models == 'both' or save_models == 'best':
             model_saving_name_with_info = (
                 f'{model_saving_name} '
@@ -173,20 +181,20 @@ def train_model(
     )
 
     train_label_counts = _calculate_label_counts(train_ds.labels)
-    loss_weight = \
-        _calculate_loss_weight(train_ds.labels, training_hyper_parameters.loss_weight_modifiers.to(device))
+    balancing_train_loss_weights = _calculate_balancing_loss_weights(train_ds.labels)
 
     eval_label_counts = _calculate_label_counts(eval_ds.labels)
-    eval_loss_weight = \
-        _calculate_loss_weight(eval_ds.labels, training_hyper_parameters.loss_weight_modifiers.to(device))
+    balancing_eval_loss_weights = _calculate_balancing_loss_weights(eval_ds.labels)
+
+    loss_module = training_hyper_parameters.loss_module_provider(balancing_train_loss_weights)
 
     print()
     print(f'train label counts = [{", ".join([f"{c:>5d}" for c in train_label_counts.tolist()])}]')
     print(f'eval label counts  = [{", ".join([f"{c:>5d}" for c in eval_label_counts.tolist()])}]\n')
-    print(f'loss weights                    = '
-          f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in loss_weight.tolist()])}]')
-    print(f'eval loss weights (theoretical) = '
-          f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in eval_loss_weight.tolist()])}]')
+    print(f'balancing loss weights                    = '
+          f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in balancing_train_loss_weights.tolist()])}]')
+    print(f'balancing eval loss weights (theoretical) = '
+          f'[{", ".join([f"{round(weight, 2):>5.2f}" for weight in balancing_eval_loss_weights.tolist()])}]')
     print('\n')
 
     training_run_metrics, best_model, best_metrics = _train_model(
@@ -194,7 +202,7 @@ def train_model(
         train_data_loader,
         eval_data_loader,
         optimizer,
-        loss_weight,
+        loss_module,
         training_hyper_parameters.num_epochs,
         lr_scheduler,
         device
@@ -208,7 +216,7 @@ def _train_model(
         train_data_loader: torch.utils.data.DataLoader,
         eval_data_loader: torch.utils.data.DataLoader,
         optimizer: torch.optim.Optimizer,
-        loss_weight: torch.Tensor,
+        loss_module: nn.Module,
         num_epochs: int,
         lr_scheduler: Optional[torch.optim.lr_scheduler.MultiStepLR],
         device: torch.device
@@ -217,7 +225,6 @@ def _train_model(
         raise ValueError(f'{num_epochs = } has to be bigger than 0!')
 
     model.train()
-    criterion = nn.CrossEntropyLoss(weight=loss_weight)
 
     best_score: float = -np.inf
     best_model: nn.Module = copy.deepcopy(model)
@@ -229,7 +236,7 @@ def _train_model(
         train_metrics, validation_metrics = train_epoch(
             epoch_nr,
             model,
-            criterion,
+            loss_module,
             train_data_loader,
             eval_data_loader,
             optimizer,
@@ -243,7 +250,7 @@ def _train_model(
         print(f'Evaluation Epoch {epoch_nr:>3}/{num_epochs:<3}: {validation_metrics}')
 
         score = validation_metrics.score
-        if score >= best_score:
+        if score > best_score:
             best_score = score
             best_model = copy.deepcopy(model)
             best_metrics = (train_metrics, validation_metrics)
@@ -258,11 +265,11 @@ def _train_model(
 def train_epoch(
         epoch_nr: int,
         model: M,
-        criterion: nn.CrossEntropyLoss,
+        loss_module: nn.Module,
         train_data_loader: torch.utils.data.DataLoader,
         eval_data_loader: torch.utils.data.DataLoader,
         optimizer: torch.optim.Optimizer,
-        device: torch.device
+        device: torch.device,
 ) -> TrainAndEvaluationMetrics:
     metrics_collector = LabelCollector()
 
@@ -274,9 +281,9 @@ def train_epoch(
         pred = model.forward(data)
 
         pred, labels = _reshape_for_loss(pred, labels)
-        loss = criterion(pred, labels)
+        loss = loss_module.forward(pred, labels)
 
-        loss.backward()
+        loss.backward(retain_graph=True)  # TODO: parameter
         optimizer.step()
 
         pred_labels: torch.Tensor = pred.argmax(dim=1).view(-1).long()
@@ -357,12 +364,14 @@ def _calculate_label_counts(labels: np.ndarray) -> torch.Tensor:
     return torch.bincount(torch.flatten(torch.Tensor(labels).long()))
 
 
-def _calculate_loss_weight(labels: np.ndarray, loss_weight_factors: Optional[torch.Tensor]) -> torch.Tensor:
+def _calculate_balancing_loss_weights(labels: np.ndarray) -> torch.Tensor:
+    if labels.size == 0:
+        return torch.Tensor([])
+
     counts = _calculate_label_counts(labels)
     counts_max = counts.max()
     weights = (counts_max / counts).to(get_torch_device())
-    if loss_weight_factors is not None:
-        weights *= loss_weight_factors
+
     return weights
 
 

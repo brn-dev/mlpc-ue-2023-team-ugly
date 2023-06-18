@@ -22,9 +22,9 @@ def save_model_with_scaler(model: nn.Module, normalization_scaler: StandardScale
     print(f'Saved model with scaler as "{file_name}"')
 
 
-def load_model_with_scaler(file_name: str) -> tuple[nn.Module, StandardScaler]:
-    model = load_model(file_name)
-    normalization_scaler = load_scaler(file_name)
+def load_model_with_scaler(file_name: str, folder_path: MODEL_FOLDER_PATH) -> tuple[nn.Module, StandardScaler]:
+    model = load_model(file_name, folder_path)
+    normalization_scaler = load_scaler(file_name, folder_path)
     return model, normalization_scaler
 
 
@@ -44,13 +44,18 @@ def load_models_with_scalers_with_prefix(
     ])
 
     for model_path in model_paths:
-        model, scaler = load_model_with_scaler(model_path)
-        eval_score = _extract_score(model_path, 'eval_score')
-        test_score = _extract_score(model_path, 'test_score')
+        model, scaler = load_model_with_scaler(model_path, folder_path)
+        eval_score = _extract_score(model_path, 'eval-score')
+        test_score = _extract_score(model_path, 'test-score')
 
-        if eval_score < 0:
+        if eval_score is None:
+            print(f'{model_path}: eval_score None!')
+        elif eval_score < 0:
             print(f'{model_path}: eval_score < 0!')
-        if test_score < 0:
+
+        if test_score is None:
+            print(f'{model_path}: test_score None!')
+        elif test_score < 0:
             print(f'{model_path}: test_score < 0!')
 
         models.append((model, scaler, (eval_score, test_score)))
@@ -64,8 +69,8 @@ def save_model(model: torch.nn.Module, file_name: str) -> str:
         return save_path
 
 
-def load_model(file_name='model.pt'):
-    with open(os.path.join(MODEL_FOLDER_PATH, append_ext(file_name, PT_EXT)), 'rb') as f:
+def load_model(file_name: str, folder_path=MODEL_FOLDER_PATH):
+    with open(os.path.join(folder_path, append_ext(file_name, PT_EXT)), 'rb') as f:
         return torch.load(f)
 
 
@@ -74,8 +79,8 @@ def save_scaler(scaler: StandardScaler, file_name: str):
     joblib.dump(scaler, save_path)
 
 
-def load_scaler(file_name: str) -> StandardScaler:
-    load_path = os.path.join(MODEL_FOLDER_PATH, append_ext(file_name, SCALER_EXT))
+def load_scaler(file_name: str, folder_path=MODEL_FOLDER_PATH) -> StandardScaler:
+    load_path = os.path.join(folder_path, append_ext(file_name, SCALER_EXT))
     return joblib.load(load_path)
 
 

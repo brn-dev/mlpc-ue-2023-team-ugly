@@ -13,6 +13,7 @@ class FNNHyperParameters(HyperParameters):
     layers_out_features: list[int]
     activation_provider: Callable[[], nn.Module]
     dropout: float
+    end_with_activation: bool = False
 
 class FNN(nn.Module):
 
@@ -31,7 +32,8 @@ class FNN(nn.Module):
 
             in_features = out_features
 
-        self.layers = nn.Sequential(*layers[:-1])
+        if not hyper_parameters.end_with_activation:
+            self.layers = nn.Sequential(*layers[:-1])
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
@@ -32,18 +34,25 @@ def remove_correlated_columns(data_train: np.ndarray, data_test: np.ndarray) -> 
     return data_train, data_test
 
 
-def normalize_data(data_train: np.ndarray, data_test: np.ndarray) -> tuple[np.ndarray, np.ndarray, StandardScaler]:
+def normalize_data(
+        data_train: np.ndarray,
+        data_test: Optional[np.ndarray]
+) -> tuple[np.ndarray, np.ndarray, StandardScaler]:
     data_train_flattened = data_train.reshape((-1, data_train.shape[-1]))
-    data_test_flattened = data_test.reshape((-1, data_test.shape[-1]))
 
     scaler = StandardScaler()
 
     scaler.fit(data_train_flattened)
 
-    data_train_scaled = scaler.transform(data_train_flattened)
-    data_test_scaled = scaler.transform(data_test_flattened)
+    data_train_scaled = scaler.transform(data_train_flattened).reshape(data_train.shape)
 
-    return data_train_scaled.reshape(data_train.shape), data_test_scaled.reshape(data_test.shape), scaler
+    if data_test is not None:
+        data_test_flattened = data_test.reshape((-1, data_test.shape[-1]))
+        data_test_scaled = scaler.transform(data_test_flattened).reshape(data_test.shape)
+    else:
+        data_test_scaled = None
+
+    return data_train_scaled, data_test_scaled, scaler
 
 def normalize_data_using_preexisting_scaler(data: np.ndarray, scaler: StandardScaler) -> np.ndarray:
     data_flat = data.reshape((-1, data.shape[-1]))

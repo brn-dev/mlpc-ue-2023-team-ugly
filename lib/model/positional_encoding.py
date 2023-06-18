@@ -21,20 +21,18 @@ class PositionalEncoding(nn.Module):
         pos_encoding[:, 0::2] = torch.sin(positions_list * division_term)
         pos_encoding[:, 1::2] = torch.cos(positions_list * division_term)
 
-        pos_encoding = torch.unsqueeze(pos_encoding, 1)
-
         self.register_buffer('pos_encoding', pos_encoding)
 
     def forward(self, token_embedding: torch.Tensor) -> torch.Tensor:
         # using batch second internally
-        if self.batch_first:
+        if not self.batch_first:
             token_embedding = torch.swapaxes(token_embedding, 0, 1)
 
-        sequence_length, n_sequences, dimensions = token_embedding.shape
+        n_sequences, sequence_length, dimensions = token_embedding.shape
 
         result = token_embedding + self.pos_encoding[:sequence_length]
 
-        if self.batch_first:
+        if not self.batch_first:
             result = torch.swapaxes(result, 0, 1)
 
         return result

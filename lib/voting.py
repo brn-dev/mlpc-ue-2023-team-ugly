@@ -13,7 +13,11 @@ def perform_weighted_voting(
         bird_no_bird_classifier_voting_weights: np.ndarray
 ):
     n_sequences, sequence_length, n_species_models = species_predictions.shape
-    _, _, n_bird_no_bird_models = bird_no_bird_predictions.shape
+
+    if bird_no_bird_predictions.size == 0:
+        n_bird_no_bird_models = 0
+    else:
+        _, _, n_bird_no_bird_models = bird_no_bird_predictions.shape
 
     voting_results = np.zeros((n_sequences, sequence_length)).astype(int)
     for sequence_nr in range(n_sequences):
@@ -33,8 +37,7 @@ def perform_weighted_voting(
                 if model_prediction == 0:
                     votes[0] += model_weight
                 else:
-                    for i in range(1, len(votes)):
-                        votes[i] += model_weight
+                    votes[0] -= model_weight
 
             voting_results[sequence_nr, fragment_nr] = np.argmax(votes)
 
