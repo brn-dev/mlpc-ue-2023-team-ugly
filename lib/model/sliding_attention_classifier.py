@@ -13,6 +13,7 @@ ActivationProvider = Callable[[], nn.Module]
 
 @dataclass
 class SlidingAttentionClassifierHyperParameters(AttentionClassifierHyperParameters):
+    attention_window_size: int
     step: int
 
 
@@ -26,7 +27,7 @@ class SlidingAttentionClassifier(AttentionClassifier):
 
         assert ((self.attention_window_size - self.step) / 2) % 1 == 0.0, '(window_size - step) must be even'
 
-        self.one_sided_pad = (self.attention_window_size - self.step) // 2
+        self.one_sided_offset = (self.attention_window_size - self.step) // 2
 
         self.positional_encoder = PositionalEncoding(
             d_model=hyper_parameters.d_model,
@@ -60,10 +61,10 @@ class SlidingAttentionClassifier(AttentionClassifier):
 
         embedded = self.in_fnn.forward(x)
 
-        if self.one_sided_pad > 0:
+        if self.one_sided_offset > 0:
             assert sequence_length % self.step == 0, 'sequence_length must be divisible by step'
 
-            windows = torch.nn.functional.pad(embedded, (0, 0, self.one_sided_pad, self.one_sided_pad))
+            windows = torch.nn.functional.pad(embedded, (0, 0, self.one_sided_offset, self.one_sided_offset))
             windows = windows.unfold(1, self.attention_window_size, self.step)
         else:
             windows = embedded
@@ -73,8 +74,8 @@ class SlidingAttentionClassifier(AttentionClassifier):
         embedded_with_pos = self.positional_encoder.forward(windows)
         attention_out = self.attention_stack.forward(embedded_with_pos)
 
-        if self.one_sided_pad > 0:
-            attention_out = attention_out[:, self.one_sided_pad:-self.one_sided_pad, :]
+        if self.one_sided_offset > 0:
+            attention_out = attention_out[:, self.one_sided_offset:-self.one_sided_offset, :]
 
         # TODO: Fold
         attention_out = attention_out.reshape(n_sequences, sequence_length, self.d_model)
@@ -88,6 +89,44 @@ class SlidingAttentionClassifier(AttentionClassifier):
             out = torch.swapaxes(out, 0, 1)
 
         return out
+
+    # def forward(self, x: torch.Tensor) -> torch.Tensor:
+    #     # using batch first internally
+    #     if not self.batch_first:
+    #         x = torch.swapaxes(x, 0, 1)
+    #
+    #     n_sequences, sequence_length, in_features = x.shape
+    #
+    #     if self.one_sided_offset > 0:
+    #         assert sequence_length % self.step == 0, 'sequence_length must be divisible by step'
+    #
+    #         windows = torch.nn.functional.pad(x, (0, 0, self.one_sided_offset, self.one_sided_offset))
+    #         windows = windows.unfold(1, self.attention_window_size, self.step)
+    #     else:
+    #         windows = x
+    #
+    #     windows = windows.reshape(-1, self.attention_window_size, in_features)
+    #
+    #     embedded = self.in_fnn.forward(windows)
+    #
+    #     embedded_with_pos = self.positional_encoder.forward(embedded)
+    #     attention_out = self.attention_stack.forward(embedded_with_pos)
+    #
+    #     # residual
+    #     # attention_out += embedded
+    #
+    #     out = self.out_fnn.forward(attention_out)
+    #
+    #     if self.one_sided_offset > 0:
+    #         out = out[:, self.one_sided_offset:-self.one_sided_offset, :]
+    #
+    #     # TODO: Fold
+    #     out = out.reshape(n_sequences, sequence_length, self.out_features)
+    #
+    #     if not self.batch_first:
+    #         out = torch.swapaxes(out, 0, 1)
+    #
+    #     return out
 
 def _count_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

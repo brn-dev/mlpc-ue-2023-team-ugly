@@ -46,7 +46,7 @@ class CNNClassifier(nn.Module):
         if hyper_parameters.in_fnn_hyper_parameters is not None:
             self.in_fnn = FNN(hyper_parameters.in_fnn_hyper_parameters)
         else:
-            self.in_fnn = nn.Identity
+            self.in_fnn = nn.Identity()
 
         if hyper_parameters.cnn1d_embedding_hyper_parameters is not None:
             self.cnn1d_embedding = FNN(hyper_parameters.cnn1d_embedding_hyper_parameters)
