@@ -10,6 +10,7 @@ from sklearn.preprocessing import StandardScaler
 
 from lib.confusion_matrix import display_confmat
 from lib.data_preprocessing import normalize_data_using_preexisting_scaler
+from lib.datetime import get_current_timestamp
 from lib.ds.numpy_dataset import NumpyDataset
 from lib.ds.torch_dataset import create_data_loader
 from lib.metrics import CVFoldsMetrics, TrainingRunMetrics, LabelCollector, TrainAndEvaluationMetrics, Metrics, \
@@ -37,7 +38,7 @@ def train_model_with_cv(
     CVFoldsMetrics,
     list[TrainingEvaluationAndTestMetrics]
 ]:
-    timestamp = _get_current_timestamp()
+    timestamp = get_current_timestamp()
     models_with_scalers: list[tuple[M, M, StandardScaler]] = []
     cv_folds_metrics: CVFoldsMetrics = []
     best_models_metrics: list[TrainingEvaluationAndTestMetrics] = []
@@ -373,10 +374,6 @@ def _calculate_balancing_loss_weights(labels: np.ndarray) -> torch.Tensor:
     weights = (counts_max / counts).to(get_torch_device())
 
     return weights
-
-
-def _get_current_timestamp() -> str:
-    return datetime.now().strftime('%Y-%m-%d_%H.%M')
 
 
 def _get_lr(optimizer: torch.optim.Optimizer) -> float:

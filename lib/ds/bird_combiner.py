@@ -83,11 +83,20 @@ def combine_birds(
         num_duplicates=1,
         random_seed=42
 ) -> Optional[NumpyDataset]:
-
     if numpy_ds is None:
         return None
 
+    rng = np.random.default_rng(seed=random_seed)
+
     data, labels = numpy_ds.copy()
+
+    data = data.reshape((N_BIRDS, -1, data.shape[1], data.shape[-1]))
+    labels = labels.reshape((N_BIRDS, -1, labels.shape[1]))
+
+    for bird_nr in range(N_BIRDS):
+        bird_permutation = rng.permutation(data.shape[1])
+        data[bird_nr, :] = data[bird_nr, bird_permutation]
+        labels[bird_nr, :] = labels[bird_nr, bird_permutation]
 
     data = data.reshape((N_BIRDS, -1, data.shape[-1]))
     labels = labels.reshape((N_BIRDS, -1))
@@ -112,13 +121,6 @@ def combine_birds(
         in range(N_BIRDS)
     }
     fragments_per_bird = data.shape[1]
-
-    rng = np.random.default_rng(seed=random_seed)
-
-    for bird_nr in range(N_BIRDS):
-        bird_permutation = rng.permutation(data.shape[1])
-        data[bird_nr, :] = data[bird_nr, bird_permutation]
-        labels[bird_nr, :] = labels[bird_nr, bird_permutation]
 
     tqdm_desc = f'Creating random sequence ({num_duplicates = })'
     with tqdm(total=N_BIRDS * fragments_per_bird, desc=tqdm_desc) as progress_bar:

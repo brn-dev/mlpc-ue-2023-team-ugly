@@ -8,15 +8,9 @@ def predict_for_challenge(
         challenge_data: np.ndarray,
         model: nn.Module,
         normalization_scaler: StandardScaler,
-        device: torch.device
+        device: torch.device,
+        return_logits: bool,
 ) -> np.ndarray:
-    """
-    :param challenge_data: shape (N=16, S=3000, D=548)
-    :param model:
-    :param normalization_scaler:
-    :param device:
-    """
-
     n_sequences, sequence_length, dimensions = challenge_data.shape
 
     challenge_data = challenge_data.reshape((-1, dimensions))
@@ -32,7 +26,10 @@ def predict_for_challenge(
 
         result = model(challenge_data_tensor)
 
-        return torch.argmax(result, dim=2).detach().cpu().numpy()
+        if return_logits:
+            return result.detach().cpu().numpy()
+        else:
+            return torch.argmax(result, dim=-1).detach().cpu().numpy()
 
 
 def save_results_to_csv(results: np.ndarray, path: str):

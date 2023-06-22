@@ -31,11 +31,11 @@ def load_model_with_scaler(file_name: str, folder_path: MODEL_FOLDER_PATH) -> tu
 def load_models_with_scalers_with_prefix(
         folder_path: str,
         prefix: str
-) -> list[tuple[nn.Module, StandardScaler, tuple[Optional[float], Optional[float]]]]:
+) -> list[tuple[nn.Module, StandardScaler, tuple[Optional[float], Optional[float], Optional[float]]]]:
     """
     :return: list of (Model, Normalization-Scaler, (eval-score, test-score)) tuples
     """
-    models: list[tuple[nn.Module, StandardScaler, tuple[Optional[float], Optional[float]]]] = []
+    models: list[tuple[nn.Module, StandardScaler, tuple[Optional[float], Optional[float], Optional[float]]]] = []
 
     model_paths = set([
         os.path.splitext(filename)[0]
@@ -45,6 +45,7 @@ def load_models_with_scalers_with_prefix(
 
     for model_path in model_paths:
         model, scaler = load_model_with_scaler(model_path, folder_path)
+        train_score = _extract_score(model_path, 'train-score')
         eval_score = _extract_score(model_path, 'eval-score')
         test_score = _extract_score(model_path, 'test-score')
 
@@ -58,7 +59,7 @@ def load_models_with_scalers_with_prefix(
         elif test_score < 0:
             print(f'{model_path}: test_score < 0!')
 
-        models.append((model, scaler, (eval_score, test_score)))
+        models.append((model, scaler, (train_score, eval_score, test_score)))
 
     return models
 
