@@ -1,17 +1,52 @@
+from typing import Optional
+
 import numpy as np
 
 from lib.ds.dataset_loading import BIRD_NAMES
+from lib.ds.numpy_dataset import NumpyDataset
 
 N_BIRDS = len(BIRD_NAMES)
 
+def split_sequential(
+        dataset: NumpyDataset,
+        test_size_pct: float,
+) -> tuple[NumpyDataset, Optional[NumpyDataset]]:
 
-def split(
-        data: np.ndarray,
-        labels: np.ndarray,
+    data: np.ndarray
+    labels: np.ndarray
+    data, labels = dataset
+
+    if test_size_pct == 0:
+        return dataset.copy(), None
+
+    n_sequences, sequence_length, n_features = data.shape
+
+    data = data.reshape((N_BIRDS, n_sequences // N_BIRDS, sequence_length, n_features))
+    labels = labels.reshape((N_BIRDS, n_sequences // N_BIRDS, sequence_length))
+
+    n_sequences_per_bird = n_sequences // N_BIRDS
+    n_test_sequences_per_bird = int(n_sequences_per_bird * test_size_pct)
+
+    data_test = data[:, :n_test_sequences_per_bird, :, :].reshape(-1, sequence_length, n_features)
+    labels_test = labels[:, :n_test_sequences_per_bird, :].reshape(-1, sequence_length)
+
+    data_train = data[:, n_test_sequences_per_bird:, :, :].reshape(-1, sequence_length, n_features)
+    labels_train = labels[:, n_test_sequences_per_bird:, :].reshape(-1, sequence_length)
+
+    return NumpyDataset(data_train, labels_train), NumpyDataset(data_test, labels_test)
+
+
+def split_random(
+        dataset: NumpyDataset,
         test_size_pct=0.2,
         seed=6942066
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[NumpyDataset, Optional[NumpyDataset]]:
     np.random.seed(seed)
+
+    data, labels = dataset
+
+    if test_size_pct == 0:
+        return dataset.copy(), None
 
     files_per_bird = data.shape[0] // N_BIRDS
     test_files_per_bird = int(files_per_bird * test_size_pct)
@@ -34,37 +69,4 @@ def split(
         data_train = np.append(data_train, data[train_indices], axis=0)
         labels_train = np.append(labels_train, labels[train_indices], axis=0)
 
-    return data_train, labels_train, data_test, labels_test
-
-
-def create_folds(
-        data: np.ndarray,
-        labels: np.ndarray,
-        n_folds
-) -> tuple[np.ndarray, np.ndarray]:
-    n_files = data.shape[0]
-    files_per_fold = n_files // n_folds
-
-    files_per_bird = n_files // N_BIRDS
-    files_per_bird_per_fold = files_per_bird // n_folds
-
-    data_folds = np.ndarray((n_folds, files_per_fold, data.shape[1], data.shape[2]))
-    labels_folds = np.ndarray((n_folds, files_per_fold, labels.shape[1]))
-
-    for fold in range(n_folds):
-        for bird in range(N_BIRDS):
-            data_folds[fold, files_per_bird_per_fold * bird:files_per_bird_per_fold * (bird + 1)] = \
-                data[
-                    files_per_bird * bird + files_per_bird_per_fold * fold
-                    :
-                    files_per_bird * bird + files_per_bird_per_fold * (fold + 1)
-                ]
-
-            labels_folds[fold, files_per_bird_per_fold * bird:files_per_bird_per_fold * (bird + 1)] = \
-                labels[
-                    files_per_bird * bird + files_per_bird_per_fold * fold
-                    :
-                    files_per_bird * bird + files_per_bird_per_fold * (fold + 1)
-                ]
-
-    return data_folds, labels_folds
+    return NumpyDataset(data_train, labels_train), NumpyDataset(data_test, labels_test)
